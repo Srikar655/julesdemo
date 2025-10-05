@@ -1,0 +1,4570 @@
+**********/
+
+Menu Prompt:
+
+***********
+Staggered Menu
+Preview
+Code
+Contribute
+Install
+
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+npm install gsap
+usage
+import StaggeredMenu from './StaggeredMenu';
+
+const menuItems = [
+  { label: 'Home', ariaLabel: 'Go to home page', link: '/' },
+  { label: 'About', ariaLabel: 'Learn about us', link: '/about' },
+  { label: 'Services', ariaLabel: 'View our services', link: '/services' },
+  { label: 'Contact', ariaLabel: 'Get in touch', link: '/contact' }
+];
+
+const socialItems = [
+  { label: 'Twitter', link: 'https://twitter.com' },
+  { label: 'GitHub', link: 'https://github.com' },
+  { label: 'LinkedIn', link: 'https://linkedin.com' }
+];
+
+<div style={{ height: '100vh', background: '#1a1a1a' }}>
+  <StaggeredMenu
+    position="right"
+    items={menuItems}
+    socialItems={socialItems}
+    displaySocials={true}
+    displayItemNumbering={true}
+    menuButtonColor="#fff"
+    openMenuButtonColor="#fff"
+    changeMenuColorOnOpen={true}
+    colors={['#B19EEF', '#5227FF']}
+    logoUrl="/path-to-your-logo.svg"
+    accentColor="#ff6b6b"
+    onMenuOpen={() => console.log('Menu opened')}
+    onMenuClose={() => console.log('Menu closed')}
+  />
+</div>
+code
+
+
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { gsap } from 'gsap';
+import './StaggeredMenu.css';
+
+export const StaggeredMenu = ({
+  position = 'right',
+  colors = ['#B19EEF', '#5227FF'],
+  items = [],
+  socialItems = [],
+  displaySocials = true,
+  displayItemNumbering = true,
+  className,
+  logoUrl = '/src/assets/logos/reactbits-gh-white.svg',
+  menuButtonColor = '#fff',
+  openMenuButtonColor = '#fff',
+  accentColor = '#5227FF',
+  changeMenuColorOnOpen = true,
+  isFixed = false,
+  onMenuOpen,
+  onMenuClose
+}) => {
+  const [open, setOpen] = useState(false);
+  const openRef = useRef(false);
+  const panelRef = useRef(null);
+  const preLayersRef = useRef(null);
+  const preLayerElsRef = useRef([]);
+  const plusHRef = useRef(null);
+  const plusVRef = useRef(null);
+  const iconRef = useRef(null);
+  const textInnerRef = useRef(null);
+  const textWrapRef = useRef(null);
+  const [textLines, setTextLines] = useState(['Menu', 'Close']);
+
+  const openTlRef = useRef(null);
+  const closeTweenRef = useRef(null);
+  const spinTweenRef = useRef(null);
+  const textCycleAnimRef = useRef(null);
+  const colorTweenRef = useRef(null);
+  const toggleBtnRef = useRef(null);
+  const busyRef = useRef(false);
+  const itemEntranceTweenRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      const panel = panelRef.current;
+      const preContainer = preLayersRef.current;
+      const plusH = plusHRef.current;
+      const plusV = plusVRef.current;
+      const icon = iconRef.current;
+      const textInner = textInnerRef.current;
+      if (!panel || !plusH || !plusV || !icon || !textInner) return;
+
+      let preLayers = [];
+      if (preContainer) {
+        preLayers = Array.from(preContainer.querySelectorAll('.sm-prelayer'));
+      }
+      preLayerElsRef.current = preLayers;
+
+      const offscreen = position === 'left' ? -100 : 100;
+      gsap.set([panel, ...preLayers], { xPercent: offscreen });
+      gsap.set(plusH, { transformOrigin: '50% 50%', rotate: 0 });
+      gsap.set(plusV, { transformOrigin: '50% 50%', rotate: 90 });
+      gsap.set(icon, { rotate: 0, transformOrigin: '50% 50%' });
+      gsap.set(textInner, { yPercent: 0 });
+      if (toggleBtnRef.current) gsap.set(toggleBtnRef.current, { color: menuButtonColor });
+    });
+    return () => ctx.revert();
+  }, [menuButtonColor, position]);
+
+  const buildOpenTimeline = useCallback(() => {
+    const panel = panelRef.current;
+    const layers = preLayerElsRef.current;
+    if (!panel) return null;
+
+    openTlRef.current?.kill();
+    if (closeTweenRef.current) {
+      closeTweenRef.current.kill();
+      closeTweenRef.current = null;
+    }
+    itemEntranceTweenRef.current?.kill();
+
+    const itemEls = Array.from(panel.querySelectorAll('.sm-panel-itemLabel'));
+    const numberEls = Array.from(panel.querySelectorAll('.sm-panel-list[data-numbering] .sm-panel-item'));
+    const socialTitle = panel.querySelector('.sm-socials-title');
+    const socialLinks = Array.from(panel.querySelectorAll('.sm-socials-link'));
+
+    const layerStates = layers.map(el => ({ el, start: Number(gsap.getProperty(el, 'xPercent')) }));
+    const panelStart = Number(gsap.getProperty(panel, 'xPercent'));
+
+    if (itemEls.length) {
+      gsap.set(itemEls, { yPercent: 140, rotate: 10 });
+    }
+    if (numberEls.length) {
+      gsap.set(numberEls, { '--sm-num-opacity': 0 });
+    }
+    if (socialTitle) {
+      gsap.set(socialTitle, { opacity: 0 });
+    }
+    if (socialLinks.length) {
+      gsap.set(socialLinks, { y: 25, opacity: 0 });
+    }
+
+    const tl = gsap.timeline({ paused: true });
+
+    layerStates.forEach((ls, i) => {
+      tl.fromTo(ls.el, { xPercent: ls.start }, { xPercent: 0, duration: 0.5, ease: 'power4.out' }, i * 0.07);
+    });
+    const lastTime = layerStates.length ? (layerStates.length - 1) * 0.07 : 0;
+    const panelInsertTime = lastTime + (layerStates.length ? 0.08 : 0);
+    const panelDuration = 0.65;
+    tl.fromTo(
+      panel,
+      { xPercent: panelStart },
+      { xPercent: 0, duration: panelDuration, ease: 'power4.out' },
+      panelInsertTime
+    );
+
+    if (itemEls.length) {
+      const itemsStartRatio = 0.15;
+      const itemsStart = panelInsertTime + panelDuration * itemsStartRatio;
+      tl.to(
+        itemEls,
+        {
+          yPercent: 0,
+          rotate: 0,
+          duration: 1,
+          ease: 'power4.out',
+          stagger: { each: 0.1, from: 'start' }
+        },
+        itemsStart
+      );
+      if (numberEls.length) {
+        tl.to(
+          numberEls,
+          {
+            duration: 0.6,
+            ease: 'power2.out',
+            '--sm-num-opacity': 1,
+            stagger: { each: 0.08, from: 'start' }
+          },
+          itemsStart + 0.1
+        );
+      }
+    }
+
+    if (socialTitle || socialLinks.length) {
+      const socialsStart = panelInsertTime + panelDuration * 0.4;
+      if (socialTitle) {
+        tl.to(
+          socialTitle,
+          {
+            opacity: 1,
+            duration: 0.5,
+            ease: 'power2.out'
+          },
+          socialsStart
+        );
+      }
+      if (socialLinks.length) {
+        tl.to(
+          socialLinks,
+          {
+            y: 0,
+            opacity: 1,
+            duration: 0.55,
+            ease: 'power3.out',
+            stagger: { each: 0.08, from: 'start' },
+            onComplete: () => {
+              gsap.set(socialLinks, { clearProps: 'opacity' });
+            }
+          },
+          socialsStart + 0.04
+        );
+      }
+    }
+
+    openTlRef.current = tl;
+    return tl;
+  }, []);
+
+  const playOpen = useCallback(() => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    const tl = buildOpenTimeline();
+    if (tl) {
+      tl.eventCallback('onComplete', () => {
+        busyRef.current = false;
+      });
+      tl.play(0);
+    } else {
+      busyRef.current = false;
+    }
+  }, [buildOpenTimeline]);
+
+  const playClose = useCallback(() => {
+    openTlRef.current?.kill();
+    openTlRef.current = null;
+    itemEntranceTweenRef.current?.kill();
+
+    const panel = panelRef.current;
+    const layers = preLayerElsRef.current;
+    if (!panel) return;
+
+    const all = [...layers, panel];
+    closeTweenRef.current?.kill();
+    const offscreen = position === 'left' ? -100 : 100;
+    closeTweenRef.current = gsap.to(all, {
+      xPercent: offscreen,
+      duration: 0.32,
+      ease: 'power3.in',
+      overwrite: 'auto',
+      onComplete: () => {
+        const itemEls = Array.from(panel.querySelectorAll('.sm-panel-itemLabel'));
+        if (itemEls.length) {
+          gsap.set(itemEls, { yPercent: 140, rotate: 10 });
+        }
+        const numberEls = Array.from(panel.querySelectorAll('.sm-panel-list[data-numbering] .sm-panel-item'));
+        if (numberEls.length) {
+          gsap.set(numberEls, { '--sm-num-opacity': 0 });
+        }
+        const socialTitle = panel.querySelector('.sm-socials-title');
+        const socialLinks = Array.from(panel.querySelectorAll('.sm-socials-link'));
+        if (socialTitle) gsap.set(socialTitle, { opacity: 0 });
+        if (socialLinks.length) gsap.set(socialLinks, { y: 25, opacity: 0 });
+        busyRef.current = false;
+      }
+    });
+  }, [position]);
+
+  const animateIcon = useCallback(opening => {
+    const icon = iconRef.current;
+    if (!icon) return;
+    spinTweenRef.current?.kill();
+    if (opening) {
+      spinTweenRef.current = gsap.to(icon, { rotate: 225, duration: 0.8, ease: 'power4.out', overwrite: 'auto' });
+    } else {
+      spinTweenRef.current = gsap.to(icon, { rotate: 0, duration: 0.35, ease: 'power3.inOut', overwrite: 'auto' });
+    }
+  }, []);
+
+  const animateColor = useCallback(
+    opening => {
+      const btn = toggleBtnRef.current;
+      if (!btn) return;
+      colorTweenRef.current?.kill();
+      if (changeMenuColorOnOpen) {
+        const targetColor = opening ? openMenuButtonColor : menuButtonColor;
+        colorTweenRef.current = gsap.to(btn, {
+          color: targetColor,
+          delay: 0.18,
+          duration: 0.3,
+          ease: 'power2.out'
+        });
+      } else {
+        gsap.set(btn, { color: menuButtonColor });
+      }
+    },
+    [openMenuButtonColor, menuButtonColor, changeMenuColorOnOpen]
+  );
+
+  React.useEffect(() => {
+    if (toggleBtnRef.current) {
+      if (changeMenuColorOnOpen) {
+        const targetColor = openRef.current ? openMenuButtonColor : menuButtonColor;
+        gsap.set(toggleBtnRef.current, { color: targetColor });
+      } else {
+        gsap.set(toggleBtnRef.current, { color: menuButtonColor });
+      }
+    }
+  }, [changeMenuColorOnOpen, menuButtonColor, openMenuButtonColor]);
+
+  const animateText = useCallback(opening => {
+    const inner = textInnerRef.current;
+    if (!inner) return;
+    textCycleAnimRef.current?.kill();
+
+    const currentLabel = opening ? 'Menu' : 'Close';
+    const targetLabel = opening ? 'Close' : 'Menu';
+    const cycles = 3;
+    const seq = [currentLabel];
+    let last = currentLabel;
+    for (let i = 0; i < cycles; i++) {
+      last = last === 'Menu' ? 'Close' : 'Menu';
+      seq.push(last);
+    }
+    if (last !== targetLabel) seq.push(targetLabel);
+    seq.push(targetLabel);
+    setTextLines(seq);
+
+    gsap.set(inner, { yPercent: 0 });
+    const lineCount = seq.length;
+    const finalShift = ((lineCount - 1) / lineCount) * 100;
+    textCycleAnimRef.current = gsap.to(inner, {
+      yPercent: -finalShift,
+      duration: 0.5 + lineCount * 0.07,
+      ease: 'power4.out'
+    });
+  }, []);
+
+  const toggleMenu = useCallback(() => {
+    const target = !openRef.current;
+    openRef.current = target;
+    setOpen(target);
+    if (target) {
+      onMenuOpen?.();
+      playOpen();
+    } else {
+      onMenuClose?.();
+      playClose();
+    }
+    animateIcon(target);
+    animateColor(target);
+    animateText(target);
+  }, [playOpen, playClose, animateIcon, animateColor, animateText, onMenuOpen, onMenuClose]);
+
+  return (
+    <div
+      className={(className ? className + ' ' : '') + 'staggered-menu-wrapper' + (isFixed ? ' fixed-wrapper' : '')}
+      style={accentColor ? { ['--sm-accent']: accentColor } : undefined}
+      data-position={position}
+      data-open={open || undefined}
+    >
+      <div ref={preLayersRef} className="sm-prelayers" aria-hidden="true">
+        {(() => {
+          const raw = colors && colors.length ? colors.slice(0, 4) : ['#1e1e22', '#35353c'];
+          let arr = [...raw];
+          if (arr.length >= 3) {
+            const mid = Math.floor(arr.length / 2);
+            arr.splice(mid, 1);
+          }
+          return arr.map((c, i) => <div key={i} className="sm-prelayer" style={{ background: c }} />);
+        })()}
+      </div>
+      <header className="staggered-menu-header" aria-label="Main navigation header">
+        <div className="sm-logo" aria-label="Logo">
+          <img
+            src={logoUrl || '/src/assets/logos/reactbits-gh-white.svg'}
+            alt="Logo"
+            className="sm-logo-img"
+            draggable={false}
+            width={110}
+            height={24}
+          />
+        </div>
+        <button
+          ref={toggleBtnRef}
+          className="sm-toggle"
+          aria-label={open ? 'Close menu' : 'Open menu'}
+          aria-expanded={open}
+          aria-controls="staggered-menu-panel"
+          onClick={toggleMenu}
+          type="button"
+        >
+          <span ref={textWrapRef} className="sm-toggle-textWrap" aria-hidden="true">
+            <span ref={textInnerRef} className="sm-toggle-textInner">
+              {textLines.map((l, i) => (
+                <span className="sm-toggle-line" key={i}>
+                  {l}
+                </span>
+              ))}
+            </span>
+          </span>
+          <span ref={iconRef} className="sm-icon" aria-hidden="true">
+            <span ref={plusHRef} className="sm-icon-line" />
+            <span ref={plusVRef} className="sm-icon-line sm-icon-line-v" />
+          </span>
+        </button>
+      </header>
+
+      <aside id="staggered-menu-panel" ref={panelRef} className="staggered-menu-panel" aria-hidden={!open}>
+        <div className="sm-panel-inner">
+          <ul className="sm-panel-list" role="list" data-numbering={displayItemNumbering || undefined}>
+            {items && items.length ? (
+              items.map((it, idx) => (
+                <li className="sm-panel-itemWrap" key={it.label + idx}>
+                  <a className="sm-panel-item" href={it.link} aria-label={it.ariaLabel} data-index={idx + 1}>
+                    <span className="sm-panel-itemLabel">{it.label}</span>
+                  </a>
+                </li>
+              ))
+            ) : (
+              <li className="sm-panel-itemWrap" aria-hidden="true">
+                <span className="sm-panel-item">
+                  <span className="sm-panel-itemLabel">No items</span>
+                </span>
+              </li>
+            )}
+          </ul>
+          {displaySocials && socialItems && socialItems.length > 0 && (
+            <div className="sm-socials" aria-label="Social links">
+              <h3 className="sm-socials-title">Socials</h3>
+              <ul className="sm-socials-list" role="list">
+                {socialItems.map((s, i) => (
+                  <li key={s.label + i} className="sm-socials-item">
+                    <a href={s.link} target="_blank" rel="noopener noreferrer" className="sm-socials-link">
+                      {s.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+};
+
+export default StaggeredMenu;
+CSS
+.staggered-menu-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  z-index: 40;
+}
+
+.staggered-menu-wrapper.fixed-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 40;
+  overflow: hidden;
+}
+
+.staggered-menu-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2em;
+  background: transparent;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.staggered-menu-header > * {
+  pointer-events: auto;
+}
+
+.sm-logo {
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.sm-logo-img {
+  display: block;
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+}
+
+.sm-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #e9e9ef;
+  font-weight: 500;
+  line-height: 1;
+  overflow: visible;
+}
+
+.sm-toggle:focus-visible {
+  outline: 2px solid #ffffffaa;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.sm-line:last-of-type {
+  margin-top: 6px;
+}
+
+.sm-toggle-textWrap {
+  position: relative;
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  white-space: nowrap;
+  width: var(--sm-toggle-width, auto);
+  min-width: var(--sm-toggle-width, auto);
+}
+
+.sm-toggle-textInner {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.sm-toggle-line {
+  display: block;
+  height: 1em;
+  line-height: 1;
+}
+
+.sm-icon {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform;
+}
+
+.sm-panel-itemWrap {
+  position: relative;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.sm-icon-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 2px;
+  background: currentColor;
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  will-change: transform;
+}
+
+.sm-line {
+  display: none !important;
+}
+
+.staggered-menu-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: clamp(260px, 38vw, 420px);
+  height: 100%;
+  background: white;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  padding: 6em 2em 2em 2em;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+[data-position='left'] .staggered-menu-panel {
+  right: auto;
+  left: 0;
+}
+
+.sm-prelayers {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: clamp(260px, 38vw, 420px);
+  pointer-events: none;
+  z-index: 5;
+}
+
+[data-position='left'] .sm-prelayers {
+  right: auto;
+  left: 0;
+}
+
+.sm-prelayer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 100%;
+  transform: translateX(0);
+}
+
+.sm-panel-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.sm-socials {
+  margin-top: auto;
+  padding-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sm-socials-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--sm-accent, #ff0000);
+}
+
+.sm-socials-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sm-socials-list .sm-socials-link {
+  opacity: 1;
+}
+
+.sm-socials-list:hover .sm-socials-link {
+  opacity: 0.35;
+}
+
+.sm-socials-list:hover .sm-socials-link:hover {
+  opacity: 1;
+}
+
+.sm-socials-link:focus-visible {
+  outline: 2px solid var(--sm-accent, #ff0000);
+  outline-offset: 3px;
+}
+
+.sm-socials-list:focus-within .sm-socials-link {
+  opacity: 0.35;
+}
+
+.sm-socials-list:focus-within .sm-socials-link:focus-visible {
+  opacity: 1;
+}
+
+.sm-socials-link {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #111;
+  text-decoration: none;
+  position: relative;
+  padding: 2px 0;
+  display: inline-block;
+  transition:
+    color 0.3s ease,
+    opacity 0.3s ease;
+}
+
+.sm-socials-link:hover {
+  color: var(--sm-accent, #ff0000);
+}
+
+.sm-panel-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.sm-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sm-panel-item {
+  position: relative;
+  color: #000;
+  font-weight: 600;
+  font-size: 3.5rem;
+  cursor: pointer;
+  line-height: 1;
+  letter-spacing: -2px;
+  text-transform: uppercase;
+  transition:
+    background 0.25s,
+    color 0.25s;
+  display: inline-block;
+  text-decoration: none;
+  padding-right: 1.4em;
+}
+
+.staggered-menu-panel .sm-socials-list .sm-socials-link {
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.staggered-menu-panel .sm-socials-list:hover .sm-socials-link:not(:hover) {
+  opacity: 0.35;
+}
+
+.staggered-menu-panel .sm-socials-list:focus-within .sm-socials-link:not(:focus-visible) {
+  opacity: 0.35;
+}
+
+.staggered-menu-panel .sm-socials-list .sm-socials-link:hover,
+.staggered-menu-panel .sm-socials-list .sm-socials-link:focus-visible {
+  opacity: 1;
+}
+
+.sm-panel-itemLabel {
+  display: inline-block;
+  will-change: transform;
+  transform-origin: 50% 100%;
+}
+
+.sm-panel-item:hover {
+  color: var(--sm-accent, #5227ff);
+}
+
+.sm-panel-list[data-numbering] {
+  counter-reset: smItem;
+}
+
+.sm-panel-list[data-numbering] .sm-panel-item::after {
+  counter-increment: smItem;
+  content: counter(smItem, decimal-leading-zero);
+  position: absolute;
+  top: 0.1em;
+  right: 2.8em;
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--sm-accent, #5227ff);
+  letter-spacing: 0;
+  pointer-events: none;
+  user-select: none;
+  opacity: var(--sm-num-opacity, 0);
+}
+
+@media (max-width: 1024px) {
+  .staggered-menu-panel {
+    width: 100%;
+    left: 0;
+    right: 0;
+  }
+
+  .staggered-menu-wrapper[data-open] .sm-logo-img {
+    filter: invert(100%);
+  }
+}
+
+@media (max-width: 640px) {
+  .staggered-menu-panel {
+    width: 100%;
+    left: 0;
+    right: 0;
+  }
+
+  .staggered-menu-wrapper[data-open] .sm-logo-img {
+    filter: invert(100%);
+  }
+}
+
+
+**********/
+
+Our Services Prompt:
+
+***********
+
+You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+animated-slideshow.tsx
+"use client" 
+
+import * as React from "react"
+import { HTMLMotionProps, MotionConfig, motion } from "motion/react"
+import { cn } from "@/lib/utils"
+
+interface TextStaggerHoverProps {
+  text: string
+  index: number
+}
+interface HoverSliderImageProps {
+  index: number
+  imageUrl: string
+}
+interface HoverSliderProps {}
+interface HoverSliderContextValue {
+  activeSlide: number
+  changeSlide: (index: number) => void
+}
+function splitText(text: string) {
+  const words = text.split(" ").map((word) => word.concat(" "))
+  const characters = words.map((word) => word.split("")).flat(1)
+
+  return {
+    words,
+    characters,
+  }
+}
+
+const HoverSliderContext = React.createContext<
+  HoverSliderContextValue | undefined
+>(undefined)
+function useHoverSliderContext() {
+  const context = React.useContext(HoverSliderContext)
+  if (context === undefined) {
+    throw new Error(
+      "useHoverSliderContext must be used within a HoverSliderProvider"
+    )
+  }
+  return context
+}
+
+export const HoverSlider = React.forwardRef<
+  HTMLElement,
+  React.HTMLAttributes<HTMLElement> & HoverSliderProps
+>(({ children, className, ...props }, ref) => {
+  const [activeSlide, setActiveSlide] = React.useState<number>(0)
+  const changeSlide = React.useCallback(
+    (index: number) => setActiveSlide(index),
+    [setActiveSlide]
+  )
+  return (
+    <HoverSliderContext.Provider value={{ activeSlide, changeSlide }}>
+      <div className={className}>{children}</div>
+    </HoverSliderContext.Provider>
+  )
+})
+HoverSlider.displayName = "HoverSlider"
+
+const WordStaggerHover = React.forwardRef<
+  HTMLSpanElement,
+  React.HTMLAttributes<HTMLSpanElement>
+>(({ children, className, ...props }, ref) => {
+  return (
+    <span
+      className={cn("relative inline-block origin-bottom overflow-hidden")}
+      {...props}
+    >
+      {children}
+    </span>
+  )
+})
+WordStaggerHover.displayName = "WordStaggerHover"
+
+export const TextStaggerHover = React.forwardRef<
+  HTMLElement,
+  React.HTMLAttributes<HTMLElement> & TextStaggerHoverProps
+>(({ text, index, children, className, ...props }, ref) => {
+  const { activeSlide, changeSlide } = useHoverSliderContext()
+  const { characters } = splitText(text)
+  const isActive = activeSlide === index
+  const handleMouse = () => changeSlide(index)
+  return (
+    <span
+      className={cn(
+        "relative inline-block origin-bottom overflow-hidden",
+        className
+      )}
+      {...props}
+      ref={ref}
+      onMouseEnter={handleMouse}
+    >
+      {characters.map((char, index) => (
+        <span
+          key={`${char}-${index}`}
+          className="relative inline-block overflow-hidden"
+        >
+          <MotionConfig
+            transition={{
+              delay: index * 0.025,
+              duration: 0.3,
+              ease: [0.25, 0.46, 0.45, 0.94],
+            }}
+          >
+            <motion.span
+              className="inline-block opacity-20"
+              initial={{ y: "0%" }}
+              animate={isActive ? { y: "-110%" } : { y: "0%" }}
+            >
+              {char}
+              {char === " " && index < characters.length - 1 && <>&nbsp;</>}
+            </motion.span>
+
+            <motion.span
+              className="absolute left-0 top-0 inline-block opacity-100"
+              initial={{ y: "110%" }}
+              animate={isActive ? { y: "0%" } : { y: "110%" }}
+            >
+              {char}
+            </motion.span>
+          </MotionConfig>
+        </span>
+      ))}
+    </span>
+  )
+})
+TextStaggerHover.displayName = "TextStaggerHover"
+
+export const clipPathVariants = {
+  visible: {
+    clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)",
+  },
+  hidden: {
+    clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0px)",
+  },
+}
+export const HoverSliderImageWrap = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => {
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "grid  overflow-hidden [&>*]:col-start-1 [&>*]:col-end-1 [&>*]:row-start-1 [&>*]:row-end-1 [&>*]:size-full",
+        className
+      )}
+      {...props}
+    />
+  )
+})
+HoverSliderImageWrap.displayName = "HoverSliderImageWrap"
+
+export const HoverSliderImage = React.forwardRef<
+  HTMLImageElement,
+  HTMLMotionProps<"img"> & HoverSliderImageProps
+>(({ index, imageUrl, children, className, ...props }, ref) => {
+  const { activeSlide } = useHoverSliderContext()
+  return (
+    <motion.img
+      className={cn("inline-block align-middle", className)}
+      transition={{ ease: [0.33, 1, 0.68, 1], duration: 0.8 }}
+      variants={clipPathVariants}
+      animate={activeSlide === index ? "visible" : "hidden"}
+      ref={ref}
+      {...props}
+    />
+  )
+})
+HoverSliderImage.displayName = "HoverSliderImage"
+
+
+demo.tsx
+import { HoverSlider,
+  HoverSliderImage,
+  HoverSliderImageWrap,
+  TextStaggerHover } from "@/components/blocks/animated-slideshow"
+
+  const SLIDES = [
+  {
+    id: "slide-1",
+    title: "frontend dev",
+    imageUrl:
+      "https://images.unsplash.com/photo-1654618977232-a6c6dea9d1e8?q=80&w=2486&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  {
+    id: "slide-2",
+    title: "backend dev",
+    imageUrl:
+      "https://images.unsplash.com/photo-1624996752380-8ec242e0f85d?q=80&w=2487&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  {
+    id: "slide-6",
+    title: "UI UX design",
+    imageUrl:
+      "https://images.unsplash.com/photo-1688733720228-4f7a18681c4f?q=80&w=2487&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  {
+    id: "slide-3",
+    title: "video editing",
+    imageUrl:
+      "https://images.unsplash.com/photo-1574717025058-2f8737d2e2b7?q=80&w=2487&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  {
+    id: "slide-4",
+    title: "SEO optimization",
+    imageUrl:
+      "https://images.unsplash.com/photo-1726066012698-bb7a3abce786?q=80&w=2487&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+]
+
+export function HoverSliderDemo () {
+    return (
+        <HoverSlider className="min-h-svh place-content-center p-6 md:px-12 bg-[#faf9f5] text-[#3d3929]">
+      <h3 className="mb-6 text-[rgb(201, 100, 66)] text-xs font-medium capitalize tracking-wide text-[#c96442]">
+        / our services
+      </h3>
+      <div className="flex flex-wrap items-center justify-evenly gap-6 md:gap-12">
+        <div className="flex  flex-col space-y-2 md:space-y-4   ">
+          {SLIDES.map((slide, index) => (
+            <TextStaggerHover
+              key={slide.title}
+              index={index}
+              className="cursor-pointer text-4xl font-bold uppercase tracking-tighter"
+              text={slide.title}
+            />
+          ))}
+        </div>
+        <HoverSliderImageWrap>
+          {SLIDES.map((slide, index) => (
+            <div key={slide.id} className="  ">
+              <HoverSliderImage
+                index={index}
+                imageUrl={slide.imageUrl}
+                src={slide.imageUrl}
+                alt={slide.title}
+                className="size-full max-h-96 object-cover"
+                loading="eager"
+                decoding="async"
+              />
+            </div>
+          ))}
+        </HoverSliderImageWrap>
+      </div>
+    </HoverSlider>
+    )
+}
+```
+
+Install NPM dependencies:
+```bash
+motion
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+
+**********/
+
+Our Process of development Prompt:
+
+***********
+
+Need to Sync with website theme perfectly 
+
+You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+radial-orbital-timeline.tsx
+"use client";
+import { useState, useEffect, useRef } from "react";
+import { ArrowRight, Link, Zap } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+interface TimelineItem {
+  id: number;
+  title: string;
+  date: string;
+  content: string;
+  category: string;
+  icon: React.ElementType;
+  relatedIds: number[];
+  status: "completed" | "in-progress" | "pending";
+  energy: number;
+}
+
+interface RadialOrbitalTimelineProps {
+  timelineData: TimelineItem[];
+}
+
+export default function RadialOrbitalTimeline({
+  timelineData,
+}: RadialOrbitalTimelineProps) {
+  const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>(
+    {}
+  );
+  const [viewMode, setViewMode] = useState<"orbital">("orbital");
+  const [rotationAngle, setRotationAngle] = useState<number>(0);
+  const [autoRotate, setAutoRotate] = useState<boolean>(true);
+  const [pulseEffect, setPulseEffect] = useState<Record<number, boolean>>({});
+  const [centerOffset, setCenterOffset] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
+  const [activeNodeId, setActiveNodeId] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const orbitRef = useRef<HTMLDivElement>(null);
+  const nodeRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === containerRef.current || e.target === orbitRef.current) {
+      setExpandedItems({});
+      setActiveNodeId(null);
+      setPulseEffect({});
+      setAutoRotate(true);
+    }
+  };
+
+  const toggleItem = (id: number) => {
+    setExpandedItems((prev) => {
+      const newState = { ...prev };
+      Object.keys(newState).forEach((key) => {
+        if (parseInt(key) !== id) {
+          newState[parseInt(key)] = false;
+        }
+      });
+
+      newState[id] = !prev[id];
+
+      if (!prev[id]) {
+        setActiveNodeId(id);
+        setAutoRotate(false);
+
+        const relatedItems = getRelatedItems(id);
+        const newPulseEffect: Record<number, boolean> = {};
+        relatedItems.forEach((relId) => {
+          newPulseEffect[relId] = true;
+        });
+        setPulseEffect(newPulseEffect);
+
+        centerViewOnNode(id);
+      } else {
+        setActiveNodeId(null);
+        setAutoRotate(true);
+        setPulseEffect({});
+      }
+
+      return newState;
+    });
+  };
+
+  useEffect(() => {
+    let rotationTimer: NodeJS.Timeout;
+
+    if (autoRotate && viewMode === "orbital") {
+      rotationTimer = setInterval(() => {
+        setRotationAngle((prev) => {
+          const newAngle = (prev + 0.3) % 360;
+          return Number(newAngle.toFixed(3));
+        });
+      }, 50);
+    }
+
+    return () => {
+      if (rotationTimer) {
+        clearInterval(rotationTimer);
+      }
+    };
+  }, [autoRotate, viewMode]);
+
+  const centerViewOnNode = (nodeId: number) => {
+    if (viewMode !== "orbital" || !nodeRefs.current[nodeId]) return;
+
+    const nodeIndex = timelineData.findIndex((item) => item.id === nodeId);
+    const totalNodes = timelineData.length;
+    const targetAngle = (nodeIndex / totalNodes) * 360;
+
+    setRotationAngle(270 - targetAngle);
+  };
+
+  const calculateNodePosition = (index: number, total: number) => {
+    const angle = ((index / total) * 360 + rotationAngle) % 360;
+    const radius = 200;
+    const radian = (angle * Math.PI) / 180;
+
+    const x = radius * Math.cos(radian) + centerOffset.x;
+    const y = radius * Math.sin(radian) + centerOffset.y;
+
+    const zIndex = Math.round(100 + 50 * Math.cos(radian));
+    const opacity = Math.max(
+      0.4,
+      Math.min(1, 0.4 + 0.6 * ((1 + Math.sin(radian)) / 2))
+    );
+
+    return { x, y, angle, zIndex, opacity };
+  };
+
+  const getRelatedItems = (itemId: number): number[] => {
+    const currentItem = timelineData.find((item) => item.id === itemId);
+    return currentItem ? currentItem.relatedIds : [];
+  };
+
+  const isRelatedToActive = (itemId: number): boolean => {
+    if (!activeNodeId) return false;
+    const relatedItems = getRelatedItems(activeNodeId);
+    return relatedItems.includes(itemId);
+  };
+
+  const getStatusStyles = (status: TimelineItem["status"]): string => {
+    switch (status) {
+      case "completed":
+        return "text-white bg-black border-white";
+      case "in-progress":
+        return "text-black bg-white border-black";
+      case "pending":
+        return "text-white bg-black/40 border-white/50";
+      default:
+        return "text-white bg-black/40 border-white/50";
+    }
+  };
+
+  return (
+    <div
+      className="w-full h-screen flex flex-col items-center justify-center bg-black overflow-hidden"
+      ref={containerRef}
+      onClick={handleContainerClick}
+    >
+      <div className="relative w-full max-w-4xl h-full flex items-center justify-center">
+        <div
+          className="absolute w-full h-full flex items-center justify-center"
+          ref={orbitRef}
+          style={{
+            perspective: "1000px",
+            transform: `translate(${centerOffset.x}px, ${centerOffset.y}px)`,
+          }}
+        >
+          <div className="absolute w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 via-blue-500 to-teal-500 animate-pulse flex items-center justify-center z-10">
+            <div className="absolute w-20 h-20 rounded-full border border-white/20 animate-ping opacity-70"></div>
+            <div
+              className="absolute w-24 h-24 rounded-full border border-white/10 animate-ping opacity-50"
+              style={{ animationDelay: "0.5s" }}
+            ></div>
+            <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-md"></div>
+          </div>
+
+          <div className="absolute w-96 h-96 rounded-full border border-white/10"></div>
+
+          {timelineData.map((item, index) => {
+            const position = calculateNodePosition(index, timelineData.length);
+            const isExpanded = expandedItems[item.id];
+            const isRelated = isRelatedToActive(item.id);
+            const isPulsing = pulseEffect[item.id];
+            const Icon = item.icon;
+
+            const nodeStyle = {
+              transform: `translate(${position.x}px, ${position.y}px)`,
+              zIndex: isExpanded ? 200 : position.zIndex,
+              opacity: isExpanded ? 1 : position.opacity,
+            };
+
+            return (
+              <div
+                key={item.id}
+                ref={(el) => (nodeRefs.current[item.id] = el)}
+                className="absolute transition-all duration-700 cursor-pointer"
+                style={nodeStyle}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleItem(item.id);
+                }}
+              >
+                <div
+                  className={`absolute rounded-full -inset-1 ${
+                    isPulsing ? "animate-pulse duration-1000" : ""
+                  }`}
+                  style={{
+                    background: `radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%)`,
+                    width: `${item.energy * 0.5 + 40}px`,
+                    height: `${item.energy * 0.5 + 40}px`,
+                    left: `-${(item.energy * 0.5 + 40 - 40) / 2}px`,
+                    top: `-${(item.energy * 0.5 + 40 - 40) / 2}px`,
+                  }}
+                ></div>
+
+                <div
+                  className={`
+                  w-10 h-10 rounded-full flex items-center justify-center
+                  ${
+                    isExpanded
+                      ? "bg-white text-black"
+                      : isRelated
+                      ? "bg-white/50 text-black"
+                      : "bg-black text-white"
+                  }
+                  border-2 
+                  ${
+                    isExpanded
+                      ? "border-white shadow-lg shadow-white/30"
+                      : isRelated
+                      ? "border-white animate-pulse"
+                      : "border-white/40"
+                  }
+                  transition-all duration-300 transform
+                  ${isExpanded ? "scale-150" : ""}
+                `}
+                >
+                  <Icon size={16} />
+                </div>
+
+                <div
+                  className={`
+                  absolute top-12  whitespace-nowrap
+                  text-xs font-semibold tracking-wider
+                  transition-all duration-300
+                  ${isExpanded ? "text-white scale-125" : "text-white/70"}
+                `}
+                >
+                  {item.title}
+                </div>
+
+                {isExpanded && (
+                  <Card className="absolute top-20 left-1/2 -translate-x-1/2 w-64 bg-black/90 backdrop-blur-lg border-white/30 shadow-xl shadow-white/10 overflow-visible">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-px h-3 bg-white/50"></div>
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-center">
+                        <Badge
+                          className={`px-2 text-xs ${getStatusStyles(
+                            item.status
+                          )}`}
+                        >
+                          {item.status === "completed"
+                            ? "COMPLETE"
+                            : item.status === "in-progress"
+                            ? "IN PROGRESS"
+                            : "PENDING"}
+                        </Badge>
+                        <span className="text-xs font-mono text-white/50">
+                          {item.date}
+                        </span>
+                      </div>
+                      <CardTitle className="text-sm mt-2">
+                        {item.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-xs text-white/80">
+                      <p>{item.content}</p>
+
+                      <div className="mt-4 pt-3 border-t border-white/10">
+                        <div className="flex justify-between items-center text-xs mb-1">
+                          <span className="flex items-center">
+                            <Zap size={10} className="mr-1" />
+                            Energy Level
+                          </span>
+                          <span className="font-mono">{item.energy}%</span>
+                        </div>
+                        <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
+                            style={{ width: `${item.energy}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      {item.relatedIds.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-white/10">
+                          <div className="flex items-center mb-2">
+                            <Link size={10} className="text-white/70 mr-1" />
+                            <h4 className="text-xs uppercase tracking-wider font-medium text-white/70">
+                              Connected Nodes
+                            </h4>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {item.relatedIds.map((relatedId) => {
+                              const relatedItem = timelineData.find(
+                                (i) => i.id === relatedId
+                              );
+                              return (
+                                <Button
+                                  key={relatedId}
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex items-center h-6 px-2 py-0 text-xs rounded-none border-white/20 bg-transparent hover:bg-white/10 text-white/80 hover:text-white transition-all"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleItem(relatedId);
+                                  }}
+                                >
+                                  {relatedItem?.title}
+                                  <ArrowRight
+                                    size={8}
+                                    className="ml-1 text-white/60"
+                                  />
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+demo.tsx
+"use client";
+
+import { Calendar, Code, FileText, User, Clock } from "lucide-react";
+import RadialOrbitalTimeline from "@/components/ui/radial-orbital-timeline";
+
+const timelineData = [
+  {
+    id: 1,
+    title: "Planning",
+    date: "Jan 2024",
+    content: "Project planning and requirements gathering phase.",
+    category: "Planning",
+    icon: Calendar,
+    relatedIds: [2],
+    status: "completed" as const,
+    energy: 100,
+  },
+  {
+    id: 2,
+    title: "Design",
+    date: "Feb 2024",
+    content: "UI/UX design and system architecture.",
+    category: "Design",
+    icon: FileText,
+    relatedIds: [1, 3],
+    status: "completed" as const,
+    energy: 90,
+  },
+  {
+    id: 3,
+    title: "Development",
+    date: "Mar 2024",
+    content: "Core features implementation and testing.",
+    category: "Development",
+    icon: Code,
+    relatedIds: [2, 4],
+    status: "in-progress" as const,
+    energy: 60,
+  },
+  {
+    id: 4,
+    title: "Testing",
+    date: "Apr 2024",
+    content: "User testing and bug fixes.",
+    category: "Testing",
+    icon: User,
+    relatedIds: [3, 5],
+    status: "pending" as const,
+    energy: 30,
+  },
+  {
+    id: 5,
+    title: "Release",
+    date: "May 2024",
+    content: "Final deployment and release.",
+    category: "Release",
+    icon: Clock,
+    relatedIds: [4],
+    status: "pending" as const,
+    energy: 10,
+  },
+];
+
+export function RadialOrbitalTimelineDemo() {
+  return (
+    <>
+      <RadialOrbitalTimeline timelineData={timelineData} />
+    </>
+  );
+}
+
+export default {
+  RadialOrbitalTimelineDemo,
+};
+
+```
+
+Copy-paste these files for dependencies:
+```tsx
+shadcn/badge
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const badgeVariants = cva(
+  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      variant: {
+        default:
+          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+        secondary:
+          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        destructive:
+          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+        outline: "text-foreground",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+)
+
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {}
+
+function Badge({ className, variant, ...props }: BadgeProps) {
+  return (
+    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+  )
+}
+
+export { Badge, badgeVariants }
+
+```
+```tsx
+shadcn/button
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline:
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3",
+        lg: "h-11 rounded-md px-8",
+        icon: "h-10 w-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  },
+)
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button"
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    )
+  },
+)
+Button.displayName = "Button"
+
+export { Button, buttonVariants }
+
+```
+```tsx
+shadcn/card
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+const Card = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      className,
+    )}
+    {...props}
+  />
+))
+Card.displayName = "Card"
+
+const CardHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col space-y-1.5 p-6", className)}
+    {...props}
+  />
+))
+CardHeader.displayName = "CardHeader"
+
+const CardTitle = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn(
+      "text-2xl font-semibold leading-none tracking-tight",
+      className,
+    )}
+    {...props}
+  />
+))
+CardTitle.displayName = "CardTitle"
+
+const CardDescription = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLParagraphElement>
+>(({ className, ...props }, ref) => (
+  <p
+    ref={ref}
+    className={cn("text-sm text-muted-foreground", className)}
+    {...props}
+  />
+))
+CardDescription.displayName = "CardDescription"
+
+const CardContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+))
+CardContent.displayName = "CardContent"
+
+const CardFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex items-center p-6 pt-0", className)}
+    {...props}
+  />
+))
+CardFooter.displayName = "CardFooter"
+
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+
+```
+
+Install NPM dependencies:
+```bash
+lucide-react, class-variance-authority, @radix-ui/react-slot
+```
+
+Extend existing globals.css with this code:
+```css
+@import "tailwindcss"
+
+/* Animation for the pulsing effect */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Animation for the ping effect */
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Custom animations for the orbital timeline */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-ping {
+  animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Transitions */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.duration-300 {
+  transition-duration: 300ms;
+}
+
+.duration-700 {
+  transition-duration: 700ms;
+}
+
+.duration-1000 {
+  transition-duration: 1000ms;
+}
+
+/* Backdrop blur */
+.backdrop-blur-lg {
+  backdrop-filter: blur(16px);
+}
+
+/* Custom gradients */
+.bg-gradient-orbital {
+  background: linear-gradient(to bottom right, #6366f1, #3b82f6, #14b8a6);
+}
+
+/* Z-index utilities */
+.z-10 {
+  z-index: 10;
+}
+
+.z-50 {
+  z-index: 50;
+}
+
+/* Custom shadows */
+.shadow-orbital {
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+}
+
+/* Custom transforms */
+.scale-125 {
+  transform: scale(1.25);
+}
+
+.scale-150 {
+  transform: scale(1.5);
+}
+
+/* Custom opacity values */
+.opacity-70 {
+  opacity: 0.7;
+}
+
+.opacity-50 {
+  opacity: 0.5;
+}
+
+/* Custom border opacity */
+.border-white\/10 {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.border-white\/20 {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.border-white\/30 {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.border-white\/40 {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Custom background opacity */
+.bg-black\/90 {
+  background-color: rgba(0, 0, 0, 0.9);
+}
+
+.bg-white\/50 {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+.bg-white\/80 {
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+/* Custom text opacity */
+.text-white\/70 {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.text-white\/80 {
+  color: rgba(255, 255, 255, 0.8);
+} 
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+
+**********/
+
+Achievements Section Prompt:
+
+***********
+	
+You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+bento-grid.tsx
+import { ReactNode } from "react";
+import { ArrowRightIcon } from "@radix-ui/react-icons";
+
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+
+const BentoGrid = ({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) => {
+  return (
+    <div
+      className={cn(
+        "grid w-full auto-rows-[22rem] grid-cols-3 gap-4",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+};
+
+const BentoCard = ({
+  name,
+  className,
+  background,
+  Icon,
+  description,
+  href,
+  cta,
+}: {
+  name: string;
+  className: string;
+  background: ReactNode;
+  Icon: any;
+  description: string;
+  href: string;
+  cta: string;
+}) => (
+  <div
+    key={name}
+    className={cn(
+      "group relative col-span-3 flex flex-col justify-between overflow-hidden rounded-xl",
+      // light styles
+      "bg-white [box-shadow:0_0_0_1px_rgba(0,0,0,.03),0_2px_4px_rgba(0,0,0,.05),0_12px_24px_rgba(0,0,0,.05)]",
+      // dark styles
+      "transform-gpu dark:bg-black dark:[border:1px_solid_rgba(255,255,255,.1)] dark:[box-shadow:0_-20px_80px_-20px_#ffffff1f_inset]",
+      className,
+    )}
+  >
+    <div>{background}</div>
+    <div className="pointer-events-none z-10 flex transform-gpu flex-col gap-1 p-6 transition-all duration-300 group-hover:-translate-y-10">
+      <Icon className="h-12 w-12 origin-left transform-gpu text-neutral-700 transition-all duration-300 ease-in-out group-hover:scale-75" />
+      <h3 className="text-xl font-semibold text-neutral-700 dark:text-neutral-300">
+        {name}
+      </h3>
+      <p className="max-w-lg text-neutral-400">{description}</p>
+    </div>
+
+    <div
+      className={cn(
+        "pointer-events-none absolute bottom-0 flex w-full translate-y-10 transform-gpu flex-row items-center p-4 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100",
+      )}
+    >
+      <Button variant="ghost" asChild size="sm" className="pointer-events-auto">
+        <a href={href}>
+          {cta}
+          <ArrowRightIcon className="ml-2 h-4 w-4" />
+        </a>
+      </Button>
+    </div>
+    <div className="pointer-events-none absolute inset-0 transform-gpu transition-all duration-300 group-hover:bg-black/[.03] group-hover:dark:bg-neutral-800/10" />
+  </div>
+);
+
+export { BentoCard, BentoGrid };
+
+
+demo.tsx
+import {
+  BellIcon,
+  CalendarIcon,
+  FileTextIcon,
+  GlobeIcon,
+  InputIcon,
+} from "@radix-ui/react-icons";
+
+import { BentoCard, BentoGrid } from "@/components/ui/bento-grid";
+
+const features = [
+  {
+    Icon: FileTextIcon,
+    name: "Save your files",
+    description: "We automatically save your files as you type.",
+    href: "/",
+    cta: "Learn more",
+    background: <img className="absolute -right-20 -top-20 opacity-60" />,
+    className: "lg:row-start-1 lg:row-end-4 lg:col-start-2 lg:col-end-3",
+  },
+  {
+    Icon: InputIcon,
+    name: "Full text search",
+    description: "Search through all your files in one place.",
+    href: "/",
+    cta: "Learn more",
+    background: <img className="absolute -right-20 -top-20 opacity-60" />,
+    className: "lg:col-start-1 lg:col-end-2 lg:row-start-1 lg:row-end-3",
+  },
+  {
+    Icon: GlobeIcon,
+    name: "Multilingual",
+    description: "Supports 100+ languages and counting.",
+    href: "/",
+    cta: "Learn more",
+    background: <img className="absolute -right-20 -top-20 opacity-60" />,
+    className: "lg:col-start-1 lg:col-end-2 lg:row-start-3 lg:row-end-4",
+  },
+  {
+    Icon: CalendarIcon,
+    name: "Calendar",
+    description: "Use the calendar to filter your files by date.",
+    href: "/",
+    cta: "Learn more",
+    background: <img className="absolute -right-20 -top-20 opacity-60" />,
+    className: "lg:col-start-3 lg:col-end-3 lg:row-start-1 lg:row-end-2",
+  },
+  {
+    Icon: BellIcon,
+    name: "Notifications",
+    description:
+      "Get notified when someone shares a file or mentions you in a comment.",
+    href: "/",
+    cta: "Learn more",
+    background: <img className="absolute -right-20 -top-20 opacity-60" />,
+    className: "lg:col-start-3 lg:col-end-3 lg:row-start-2 lg:row-end-4",
+  },
+];
+
+function BentoDemo() {
+  return (
+    <BentoGrid className="lg:grid-rows-3">
+      {features.map((feature) => (
+        <BentoCard key={feature.name} {...feature} />
+      ))}
+    </BentoGrid>
+  );
+}
+
+export { BentoDemo };
+```
+
+Copy-paste these files for dependencies:
+```tsx
+shadcn/button
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline:
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3",
+        lg: "h-11 rounded-md px-8",
+        icon: "h-10 w-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  },
+)
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button"
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    )
+  },
+)
+Button.displayName = "Button"
+
+export { Button, buttonVariants }
+
+```
+
+Install NPM dependencies:
+```bash
+@radix-ui/react-slot, class-variance-authority
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+ 
+
+*********/
+
+Choice us
+
+/*******
+
+You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+features-8.tsx
+import { Card, CardContent } from '@/components/ui/card'
+import { Shield, Users } from 'lucide-react'
+
+export function Features() {
+    return (
+        <section className="bg-gray-50 py-16 md:py-32 dark:bg-transparent">
+            <div className="mx-auto max-w-3xl lg:max-w-5xl px-6">
+                <div className="relative">
+                    <div className="relative z-10 grid grid-cols-6 gap-3">
+                        <Card className="relative col-span-full flex overflow-hidden lg:col-span-2">
+                            <CardContent className="relative m-auto size-fit pt-6">
+                                <div className="relative flex h-24 w-56 items-center">
+                                    <svg className="text-muted absolute inset-0 size-full" viewBox="0 0 254 104" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            d="M112.891 97.7022C140.366 97.0802 171.004 94.6715 201.087 87.5116C210.43 85.2881 219.615 82.6412 228.284 78.2473C232.198 76.3179 235.905 73.9942 239.348 71.3124C241.85 69.2557 243.954 66.7571 245.555 63.9408C249.34 57.3235 248.281 50.5341 242.498 45.6109C239.033 42.7237 235.228 40.2703 231.169 38.3054C219.443 32.7209 207.141 28.4382 194.482 25.534C184.013 23.1927 173.358 21.7755 162.64 21.2989C161.376 21.3512 160.113 21.181 158.908 20.796C158.034 20.399 156.857 19.1682 156.962 18.4535C157.115 17.8927 157.381 17.3689 157.743 16.9139C158.104 16.4588 158.555 16.0821 159.067 15.8066C160.14 15.4683 161.274 15.3733 162.389 15.5286C179.805 15.3566 196.626 18.8373 212.998 24.462C220.978 27.2494 228.798 30.4747 236.423 34.1232C240.476 36.1159 244.202 38.7131 247.474 41.8258C254.342 48.2578 255.745 56.9397 251.841 65.4892C249.793 69.8582 246.736 73.6777 242.921 76.6327C236.224 82.0192 228.522 85.4602 220.502 88.2924C205.017 93.7847 188.964 96.9081 172.738 99.2109C153.442 101.949 133.993 103.478 114.506 103.79C91.1468 104.161 67.9334 102.97 45.1169 97.5831C36.0094 95.5616 27.2626 92.1655 19.1771 87.5116C13.839 84.5746 9.1557 80.5802 5.41318 75.7725C-0.54238 67.7259 -1.13794 59.1763 3.25594 50.2827C5.82447 45.3918 9.29572 41.0315 13.4863 37.4319C24.2989 27.5721 37.0438 20.9681 50.5431 15.7272C68.1451 8.8849 86.4883 5.1395 105.175 2.83669C129.045 0.0992292 153.151 0.134761 177.013 2.94256C197.672 5.23215 218.04 9.01724 237.588 16.3889C240.089 17.3418 242.498 18.5197 244.933 19.6446C246.627 20.4387 247.725 21.6695 246.997 23.615C246.455 25.1105 244.814 25.5605 242.63 24.5811C230.322 18.9961 217.233 16.1904 204.117 13.4376C188.761 10.3438 173.2 8.36665 157.558 7.52174C129.914 5.70776 102.154 8.06792 75.2124 14.5228C60.6177 17.8788 46.5758 23.2977 33.5102 30.6161C26.6595 34.3329 20.4123 39.0673 14.9818 44.658C12.9433 46.8071 11.1336 49.1622 9.58207 51.6855C4.87056 59.5336 5.61172 67.2494 11.9246 73.7608C15.2064 77.0494 18.8775 79.925 22.8564 82.3236C31.6176 87.7101 41.3848 90.5291 51.3902 92.5804C70.6068 96.5773 90.0219 97.7419 112.891 97.7022Z"
+                                            fill="currentColor"
+                                        />
+                                    </svg>
+                                    <span className="mx-auto block w-fit text-5xl font-semibold">100%</span>
+                                </div>
+                                <h2 className="mt-6 text-center text-3xl font-semibold">Customizable</h2>
+                            </CardContent>
+                        </Card>
+                        <Card className="relative col-span-full overflow-hidden sm:col-span-3 lg:col-span-2">
+                            <CardContent className="pt-6">
+                                <div className="relative mx-auto flex aspect-square size-32 rounded-full border before:absolute before:-inset-2 before:rounded-full before:border dark:border-white/10 dark:before:border-white/5">
+                                    <svg className="m-auto h-fit w-24" viewBox="0 0 212 143" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            className="text-zinc-400 dark:text-zinc-600"
+                                            d="M44.0209 55.3542C43.1945 54.7639 42.6916 54.0272 42.5121 53.1442C42.3327 52.2611 42.5995 51.345 43.3125 50.3958C50.632 40.3611 59.812 32.5694 70.8525 27.0208C81.8931 21.4722 93.668 18.6979 106.177 18.6979C118.691 18.6979 130.497 21.3849 141.594 26.7587C152.691 32.1326 161.958 39.8936 169.396 50.0417C170.222 51.1042 170.489 52.0486 170.196 52.875C169.904 53.7014 169.401 54.4097 168.688 55C167.979 55.5903 167.153 55.8571 166.208 55.8004C165.264 55.7437 164.438 55.2408 163.729 54.2917C157.236 45.0833 148.885 38.0307 138.675 33.1337C128.466 28.2368 117.633 25.786 106.177 25.7812C94.7257 25.7812 83.9827 28.2321 73.948 33.1337C63.9132 38.0354 55.5903 45.0881 48.9792 54.2917C48.2709 55.3542 47.4445 55.9444 46.5 56.0625C45.5556 56.1806 44.7292 55.9444 44.0209 55.3542ZM126.188 142.656C113.91 139.587 103.875 133.476 96.0834 124.325C88.2917 115.173 84.3959 103.988 84.3959 90.7708C84.3959 84.8681 86.5209 79.9097 90.7709 75.8958C95.0209 71.8819 100.156 69.875 106.177 69.875C112.198 69.875 117.333 71.8819 121.583 75.8958C125.833 79.9097 127.958 84.8681 127.958 90.7708C127.958 94.6667 129.434 97.9439 132.385 100.602C135.337 103.261 138.819 104.588 142.833 104.583C146.847 104.583 150.271 103.256 153.104 100.602C155.938 97.9486 157.354 94.6714 157.354 90.7708C157.354 77.0764 152.337 65.566 142.302 56.2396C132.267 46.9132 120.285 42.25 106.354 42.25C92.4237 42.25 80.441 46.9132 70.4063 56.2396C60.3716 65.566 55.3542 77.0174 55.3542 90.5937C55.3542 93.4271 55.621 96.9687 56.1546 101.219C56.6882 105.469 57.9562 110.427 59.9584 116.094C60.3125 117.156 60.2842 118.101 59.8734 118.927C59.4625 119.753 58.7825 120.344 57.8334 120.698C56.8889 121.052 55.9752 121.024 55.0921 120.613C54.2091 120.202 53.5881 119.522 53.2292 118.573C51.4584 113.969 50.1905 109.395 49.4255 104.853C48.6605 100.31 48.2756 95.6158 48.2709 90.7708C48.2709 75.0694 53.9682 61.9062 65.363 51.2812C76.7577 40.6562 90.3624 35.3437 106.177 35.3437C122.115 35.3437 135.809 40.6562 147.26 51.2812C158.712 61.9062 164.438 75.0694 164.438 90.7708C164.438 96.6736 162.343 101.601 158.155 105.554C153.966 109.506 148.859 111.485 142.833 111.49C136.813 111.49 131.649 109.513 127.342 105.561C123.035 101.608 120.88 96.6783 120.875 90.7708C120.875 86.875 119.43 83.5978 116.54 80.9392C113.65 78.2805 110.196 76.9536 106.177 76.9583C102.163 76.9583 98.7089 78.2876 95.8142 80.9462C92.9195 83.6049 91.4745 86.8797 91.4792 90.7708C91.4792 102.222 94.8745 111.785 101.665 119.458C108.456 127.132 117.22 132.503 127.958 135.573C129.021 135.927 129.729 136.517 130.083 137.344C130.438 138.17 130.497 139.056 130.26 140C130.024 140.826 129.552 141.535 128.844 142.125C128.135 142.715 127.25 142.892 126.188 142.656ZM67.0417 18.3437C66.0973 18.934 65.1528 19.0828 64.2084 18.79C63.2639 18.4972 62.5556 17.8762 62.0834 16.9271C61.6112 15.9826 61.4931 15.1279 61.7292 14.3629C61.9653 13.5979 62.5556 12.9179 63.5 12.3229C70.1112 8.78125 77.0174 6.06597 84.2188 4.17708C91.4202 2.28819 98.7396 1.34375 106.177 1.34375C113.733 1.34375 121.111 2.25986 128.313 4.09208C135.514 5.92431 142.479 8.54986 149.208 11.9687C150.271 12.559 150.892 13.2674 151.071 14.0937C151.251 14.9201 151.161 15.7465 150.802 16.5729C150.448 17.3993 149.858 18.0486 149.031 18.5208C148.205 18.9931 147.201 18.934 146.021 18.3437C139.764 15.1563 133.299 12.7078 126.627 10.9983C119.954 9.28889 113.138 8.43181 106.177 8.42708C99.3299 8.42708 92.6007 9.22514 85.9896 10.8212C79.3785 12.4174 73.0625 14.9249 67.0417 18.3437ZM87.9375 140.177C80.9723 132.858 75.6314 125.392 71.915 117.78C68.1987 110.167 66.3381 101.164 66.3334 90.7708C66.3334 80.0278 70.2292 70.9658 78.0209 63.585C85.8125 56.2042 95.198 52.5161 106.177 52.5208C117.156 52.5208 126.601 56.2112 134.51 63.5921C142.42 70.9729 146.375 80.0325 146.375 90.7708C146.375 91.8333 146.052 92.6904 145.405 93.3421C144.758 93.9937 143.901 94.3172 142.833 94.3125C141.889 94.3125 141.063 93.989 140.354 93.3421C139.646 92.6951 139.292 91.8381 139.292 90.7708C139.292 81.9167 136.014 74.5099 129.46 68.5504C122.906 62.591 115.145 59.6089 106.177 59.6042C97.2049 59.6042 89.503 62.5862 83.0713 68.5504C76.6396 74.5146 73.4214 81.9214 73.4167 90.7708C73.4167 100.333 75.0695 108.451 78.375 115.123C81.6806 121.796 86.5209 128.494 92.8959 135.219C93.6042 135.927 93.9584 136.753 93.9584 137.698C93.9584 138.642 93.6042 139.469 92.8959 140.177C92.1875 140.885 91.3612 141.24 90.4167 141.24C89.4723 141.24 88.6459 140.885 87.9375 140.177ZM141.417 128.135C130.91 128.135 121.789 124.594 114.054 117.51C106.319 110.427 102.454 101.514 102.458 90.7708C102.458 89.8264 102.784 89 103.436 88.2917C104.088 87.5833 104.942 87.2292 106 87.2292C107.063 87.2292 107.92 87.5833 108.571 88.2917C109.223 89 109.546 89.8264 109.542 90.7708C109.542 99.625 112.729 106.885 119.104 112.552C125.479 118.219 132.917 121.052 141.417 121.052C142.125 121.052 143.129 120.993 144.427 120.875C145.726 120.757 147.083 120.58 148.5 120.344C149.563 120.108 150.479 120.256 151.248 120.79C152.018 121.324 152.519 122.119 152.75 123.177C152.986 124.122 152.809 124.948 152.219 125.656C151.629 126.365 150.861 126.837 149.917 127.073C147.792 127.663 145.934 127.989 144.342 128.05C142.751 128.112 141.776 128.14 141.417 128.135Z"
+                                            fill="currentColor"
+                                        />
+                                        <g clipPath="url(#clip0_0_1)">
+                                            <path
+                                                d="M44.0209 55.3542C43.1945 54.7639 42.6916 54.0272 42.5121 53.1442C42.3327 52.2611 42.5995 51.345 43.3125 50.3958C50.632 40.3611 59.812 32.5694 70.8525 27.0208C81.8931 21.4722 93.668 18.6979 106.177 18.6979C118.691 18.6979 130.497 21.3849 141.594 26.7587C152.691 32.1326 161.958 39.8936 169.396 50.0417C170.222 51.1042 170.489 52.0486 170.196 52.875C169.904 53.7014 169.401 54.4097 168.688 55C167.979 55.5903 167.153 55.8571 166.208 55.8004C165.264 55.7437 164.438 55.2408 163.729 54.2917C157.236 45.0833 148.885 38.0307 138.675 33.1337C128.466 28.2368 117.633 25.786 106.177 25.7812C94.7257 25.7812 83.9827 28.2321 73.948 33.1337C63.9132 38.0354 55.5903 45.0881 48.9792 54.2917C48.2709 55.3542 47.4445 55.9444 46.5 56.0625C45.5556 56.1806 44.7292 55.9444 44.0209 55.3542ZM126.188 142.656C113.91 139.587 103.875 133.476 96.0834 124.325C88.2917 115.173 84.3959 103.988 84.3959 90.7708C84.3959 84.8681 86.5209 79.9097 90.7709 75.8958C95.0209 71.8819 100.156 69.875 106.177 69.875C112.198 69.875 117.333 71.8819 121.583 75.8958C125.833 79.9097 127.958 84.8681 127.958 90.7708C127.958 94.6667 129.434 97.9439 132.385 100.602C135.337 103.261 138.819 104.588 142.833 104.583C146.847 104.583 150.271 103.256 153.104 100.602C155.938 97.9486 157.354 94.6714 157.354 90.7708C157.354 77.0764 152.337 65.566 142.302 56.2396C132.267 46.9132 120.285 42.25 106.354 42.25C92.4237 42.25 80.441 46.9132 70.4063 56.2396C60.3716 65.566 55.3542 77.0174 55.3542 90.5937C55.3542 93.4271 55.621 96.9687 56.1546 101.219C56.6882 105.469 57.9562 110.427 59.9584 116.094C60.3125 117.156 60.2842 118.101 59.8734 118.927C59.4625 119.753 58.7825 120.344 57.8334 120.698C56.8889 121.052 55.9752 121.024 55.0921 120.613C54.2091 120.202 53.5881 119.522 53.2292 118.573C51.4584 113.969 50.1905 109.395 49.4255 104.853C48.6605 100.31 48.2756 95.6158 48.2709 90.7708C48.2709 75.0694 53.9682 61.9062 65.363 51.2812C76.7577 40.6562 90.3624 35.3437 106.177 35.3437C122.115 35.3437 135.809 40.6562 147.26 51.2812C158.712 61.9062 164.438 75.0694 164.438 90.7708C164.438 96.6736 162.343 101.601 158.155 105.554C153.966 109.506 148.859 111.485 142.833 111.49C136.813 111.49 131.649 109.513 127.342 105.561C123.035 101.608 120.88 96.6783 120.875 90.7708C120.875 86.875 119.43 83.5978 116.54 80.9392C113.65 78.2805 110.196 76.9536 106.177 76.9583C102.163 76.9583 98.7089 78.2876 95.8142 80.9462C92.9195 83.6049 91.4745 86.8797 91.4792 90.7708C91.4792 102.222 94.8745 111.785 101.665 119.458C108.456 127.132 117.22 132.503 127.958 135.573C129.021 135.927 129.729 136.517 130.083 137.344C130.438 138.17 130.497 139.056 130.26 140C130.024 140.826 129.552 141.535 128.844 142.125C128.135 142.715 127.25 142.892 126.188 142.656ZM67.0417 18.3437C66.0973 18.934 65.1528 19.0828 64.2084 18.79C63.2639 18.4972 62.5556 17.8762 62.0834 16.9271C61.6112 15.9826 61.4931 15.1279 61.7292 14.3629C61.9653 13.5979 62.5556 12.9179 63.5 12.3229C70.1112 8.78125 77.0174 6.06597 84.2188 4.17708C91.4202 2.28819 98.7396 1.34375 106.177 1.34375C113.733 1.34375 121.111 2.25986 128.313 4.09208C135.514 5.92431 142.479 8.54986 149.208 11.9687C150.271 12.559 150.892 13.2674 151.071 14.0937C151.251 14.9201 151.161 15.7465 150.802 16.5729C150.448 17.3993 149.858 18.0486 149.031 18.5208C148.205 18.9931 147.201 18.934 146.021 18.3437C139.764 15.1563 133.299 12.7078 126.627 10.9983C119.954 9.28889 113.138 8.43181 106.177 8.42708C99.3299 8.42708 92.6007 9.22514 85.9896 10.8212C79.3785 12.4174 73.0625 14.9249 67.0417 18.3437ZM87.9375 140.177C80.9723 132.858 75.6314 125.392 71.915 117.78C68.1987 110.167 66.3381 101.164 66.3334 90.7708C66.3334 80.0278 70.2292 70.9658 78.0209 63.585C85.8125 56.2042 95.198 52.5161 106.177 52.5208C117.156 52.5208 126.601 56.2112 134.51 63.5921C142.42 70.9729 146.375 80.0325 146.375 90.7708C146.375 91.8333 146.052 92.6904 145.405 93.3421C144.758 93.9937 143.901 94.3172 142.833 94.3125C141.889 94.3125 141.063 93.989 140.354 93.3421C139.646 92.6951 139.292 91.8381 139.292 90.7708C139.292 81.9167 136.014 74.5099 129.46 68.5504C122.906 62.591 115.145 59.6089 106.177 59.6042C97.2049 59.6042 89.503 62.5862 83.0713 68.5504C76.6396 74.5146 73.4214 81.9214 73.4167 90.7708C73.4167 100.333 75.0695 108.451 78.375 115.123C81.6806 121.796 86.5209 128.494 92.8959 135.219C93.6042 135.927 93.9584 136.753 93.9584 137.698C93.9584 138.642 93.6042 139.469 92.8959 140.177C92.1875 140.885 91.3612 141.24 90.4167 141.24C89.4723 141.24 88.6459 140.885 87.9375 140.177ZM141.417 128.135C130.91 128.135 121.789 124.594 114.054 117.51C106.319 110.427 102.454 101.514 102.458 90.7708C102.458 89.8264 102.784 89 103.436 88.2917C104.088 87.5833 104.942 87.2292 106 87.2292C107.063 87.2292 107.92 87.5833 108.571 88.2917C109.223 89 109.546 89.8264 109.542 90.7708C109.542 99.625 112.729 106.885 119.104 112.552C125.479 118.219 132.917 121.052 141.417 121.052C142.125 121.052 143.129 120.993 144.427 120.875C145.726 120.757 147.083 120.58 148.5 120.344C149.563 120.108 150.479 120.256 151.248 120.79C152.018 121.324 152.519 122.119 152.75 123.177C152.986 124.122 152.809 124.948 152.219 125.656C151.629 126.365 150.861 126.837 149.917 127.073C147.792 127.663 145.934 127.989 144.342 128.05C142.751 128.112 141.776 128.14 141.417 128.135Z"
+                                                fill="url(#paint0_linear_0_1)"
+                                            />
+                                        </g>
+                                        <path className="text-primary-600 dark:text-primary-500" d="M3 72H209" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
+                                        <defs>
+                                            <linearGradient id="paint0_linear_0_1" x1="106.385" y1="1.34375" x2="106" y2="72" gradientUnits="userSpaceOnUse">
+                                                <stop stopColor="white" stopOpacity="0" />
+                                                <stop className="text-primary-600 dark:text-primary-500" offset="1" stopColor="currentColor" />
+                                            </linearGradient>
+                                            <clipPath id="clip0_0_1">
+                                                <rect width="129" height="72" fill="white" transform="translate(41)" />
+                                            </clipPath>
+                                        </defs>
+                                    </svg>
+                                </div>
+                                <div className="relative z-10 mt-6 space-y-2 text-center">
+                                    <h2 className="group-hover:text-secondary-950 text-lg font-medium transition dark:text-white">Secure by default</h2>
+                                    <p className="text-foreground">Provident fugit and vero voluptate. magnam magni doloribus dolores voluptates a sapiente nisi.</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="relative col-span-full overflow-hidden sm:col-span-3 lg:col-span-2">
+                            <CardContent className="pt-6">
+                                <div className="pt-6 lg:px-6">
+                                    <svg className="dark:text-muted-foreground w-full" viewBox="0 0 386 123" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <rect width="386" height="123" rx="10" />
+                                        <g clipPath="url(#clip0_0_106)">
+                                            <circle className="text-muted-foreground dark:text-muted" cx="29" cy="29" r="15" fill="currentColor" />
+                                            <path d="M29 23V35" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                            <path d="M35 29L29 35L23 29" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                            <path
+                                                d="M55.2373 32H58.7988C61.7383 32 63.4404 30.1816 63.4404 27.0508V27.0371C63.4404 23.9404 61.7246 22.1357 58.7988 22.1357H55.2373V32ZM56.7686 30.6807V23.4551H58.6279C60.6719 23.4551 61.8818 24.7881 61.8818 27.0576V27.0713C61.8818 29.3613 60.6924 30.6807 58.6279 30.6807H56.7686ZM69.4922 32.1436C71.666 32.1436 72.999 30.6875 72.999 28.2949V28.2812C72.999 25.8887 71.6592 24.4326 69.4922 24.4326C67.3184 24.4326 65.9785 25.8955 65.9785 28.2812V28.2949C65.9785 30.6875 67.3115 32.1436 69.4922 32.1436ZM69.4922 30.9062C68.2139 30.9062 67.4961 29.9424 67.4961 28.2949V28.2812C67.4961 26.6338 68.2139 25.6699 69.4922 25.6699C70.7637 25.6699 71.4883 26.6338 71.4883 28.2812V28.2949C71.4883 29.9355 70.7637 30.9062 69.4922 30.9062ZM76.9111 32H78.4219L79.9531 26.4629H80.0693L81.6074 32H83.1318L85.1758 24.5762H83.7061L82.3799 30.3047H82.2637L80.7324 24.5762H79.3242L77.793 30.3047H77.6836L76.3506 24.5762H74.8604L76.9111 32ZM87.6934 32H89.1768V27.6455C89.1768 26.4492 89.8535 25.7041 90.9404 25.7041C92.0273 25.7041 92.54 26.3125 92.54 27.543V32H94.0166V27.1943C94.0166 25.4238 93.1006 24.4326 91.4395 24.4326C90.3594 24.4326 89.6484 24.9111 89.2861 25.7041H89.1768V24.5762H87.6934V32ZM97.1562 32H98.6396V21.6641H97.1562V32ZM104.992 32.1436C107.166 32.1436 108.499 30.6875 108.499 28.2949V28.2812C108.499 25.8887 107.159 24.4326 104.992 24.4326C102.818 24.4326 101.479 25.8955 101.479 28.2812V28.2949C101.479 30.6875 102.812 32.1436 104.992 32.1436ZM104.992 30.9062C103.714 30.9062 102.996 29.9424 102.996 28.2949V28.2812C102.996 26.6338 103.714 25.6699 104.992 25.6699C106.264 25.6699 106.988 26.6338 106.988 28.2812V28.2949C106.988 29.9355 106.264 30.9062 104.992 30.9062ZM113.307 32.123C114.291 32.123 115.07 31.6992 115.508 30.9473H115.624V32H117.094V26.9209C117.094 25.3623 116.041 24.4326 114.175 24.4326C112.486 24.4326 111.317 25.2461 111.14 26.4629L111.133 26.5107H112.562L112.568 26.4834C112.746 25.957 113.286 25.6562 114.106 25.6562C115.111 25.6562 115.624 26.1074 115.624 26.9209V27.5771L113.614 27.6934C111.844 27.8027 110.846 28.5752 110.846 29.9014V29.915C110.846 31.2617 111.892 32.123 113.307 32.123ZM112.322 29.8535V29.8398C112.322 29.1699 112.787 28.8008 113.812 28.7393L115.624 28.623V29.2588C115.624 30.2158 114.811 30.9404 113.703 30.9404C112.903 30.9404 112.322 30.5371 112.322 29.8535ZM122.893 32.123C123.932 32.123 124.745 31.6445 125.176 30.8311H125.292V32H126.769V21.6641H125.292V25.752H125.176C124.779 24.9521 123.911 24.4463 122.893 24.4463C121.006 24.4463 119.816 25.9297 119.816 28.2812V28.2949C119.816 30.626 121.026 32.123 122.893 32.123ZM123.316 30.8584C122.072 30.8584 121.327 29.8877 121.327 28.2949V28.2812C121.327 26.6885 122.072 25.7178 123.316 25.7178C124.547 25.7178 125.312 26.6953 125.312 28.2812V28.2949C125.312 29.8809 124.554 30.8584 123.316 30.8584Z"
+                                                fill="currentColor"
+                                            />
+                                            <path
+                                                d="M268.324 34H269.906V21.3174H268.333L264.958 23.7432V25.4131L268.184 23.0752H268.324V34ZM280.363 34H281.91V31.3721H283.712V29.957H281.91V21.3174H279.616C277.841 23.9629 275.898 27.0566 274.185 29.9307V31.3721H280.363V34ZM275.802 29.9658V29.8604C277.182 27.5312 278.843 24.9121 280.267 22.7852H280.372V29.9658H275.802ZM286.162 37.2256H287.296L288.676 32.2246H286.927L286.162 37.2256ZM296.672 34.2109C299.212 34.2109 301.075 32.6465 301.075 30.5283V30.5107C301.075 28.709 299.818 27.5576 297.973 27.3994V27.3643C299.555 27.0303 300.662 25.958 300.662 24.3936V24.376C300.662 22.4512 299.071 21.1064 296.654 21.1064C294.281 21.1064 292.646 22.4863 292.444 24.5518L292.436 24.6396H293.956L293.965 24.5518C294.097 23.2686 295.16 22.4775 296.654 22.4775C298.201 22.4775 299.071 23.2422 299.071 24.5693V24.5869C299.071 25.8525 298.017 26.7842 296.505 26.7842H294.984V28.1201H296.575C298.351 28.1201 299.467 28.9902 299.467 30.5459V30.5635C299.467 31.9082 298.333 32.8398 296.672 32.8398C294.984 32.8398 293.833 31.9785 293.71 30.7305L293.701 30.6426H292.181L292.189 30.748C292.356 32.752 294.053 34.2109 296.672 34.2109ZM310.434 34H311.98V31.3721H313.782V29.957H311.98V21.3174H309.687C307.911 23.9629 305.969 27.0566 304.255 29.9307V31.3721H310.434V34ZM305.872 29.9658V29.8604C307.252 27.5312 308.913 24.9121 310.337 22.7852H310.442V29.9658H305.872ZM323.297 34H324.826V28.1289C324.826 26.793 325.767 25.7119 327.006 25.7119C328.201 25.7119 328.975 26.4414 328.975 27.5664V34H330.504V27.9092C330.504 26.7051 331.374 25.7119 332.692 25.7119C334.028 25.7119 334.67 26.4062 334.67 27.8037V34H336.199V27.4521C336.199 25.4658 335.118 24.3584 333.185 24.3584C331.875 24.3584 330.794 25.0176 330.284 26.0195H330.144C329.704 25.0352 328.808 24.3584 327.524 24.3584C326.285 24.3584 325.389 24.9473 324.967 25.9668H324.826V24.5254H323.297V34ZM344.67 34.167C347.069 34.167 348.643 32.2246 348.643 29.2715V29.2539C348.643 26.2832 347.078 24.3584 344.67 24.3584C343.369 24.3584 342.235 25.0088 341.717 26.0195H341.576V20.7637H340.047V34H341.576V32.4883H341.717C342.297 33.543 343.352 34.167 344.67 34.167ZM344.318 32.8135C342.596 32.8135 341.541 31.46 341.541 29.2715V29.2539C341.541 27.0654 342.596 25.7119 344.318 25.7119C346.05 25.7119 347.078 27.0479 347.078 29.2539V29.2715C347.078 31.4775 346.05 32.8135 344.318 32.8135ZM352.016 37.1641H353.545V32.5059H353.686C354.204 33.5166 355.338 34.167 356.639 34.167C359.047 34.167 360.611 32.2422 360.611 29.2715V29.2539C360.611 26.3008 359.038 24.3584 356.639 24.3584C355.32 24.3584 354.266 24.9824 353.686 26.0371H353.545V24.5254H352.016V37.1641ZM356.287 32.8135C354.564 32.8135 353.51 31.46 353.51 29.2715V29.2539C353.51 27.0654 354.564 25.7119 356.287 25.7119C358.019 25.7119 359.047 27.0479 359.047 29.2539V29.2715C359.047 31.4775 358.019 32.8135 356.287 32.8135ZM367.254 34.167C369.407 34.167 371.051 32.998 371.051 31.3105V31.293C371.051 29.9395 370.189 29.166 368.405 28.7354L366.946 28.3838C365.83 28.1113 365.355 27.707 365.355 27.0654V27.0479C365.355 26.2129 366.182 25.6328 367.307 25.6328C368.449 25.6328 369.188 26.1514 369.39 26.8984H370.893C370.682 25.3516 369.302 24.3584 367.315 24.3584C365.303 24.3584 363.791 25.5449 363.791 27.1182V27.127C363.791 28.4893 364.591 29.2627 366.366 29.6846L367.834 30.0361C369.003 30.3174 369.486 30.7656 369.486 31.4072V31.4248C369.486 32.2861 368.581 32.8926 367.307 32.8926C366.094 32.8926 365.338 32.374 365.083 31.583H363.519C363.694 33.1475 365.145 34.167 367.254 34.167Z"
+                                                fill="currentColor"
+                                            />
+                                        </g>
+                                        <path
+                                            fillRule="evenodd"
+                                            clipRule="evenodd"
+                                            d="M3 123C3 123 14.3298 94.153 35.1282 88.0957C55.9266 82.0384 65.9333 80.5508 65.9333 80.5508C65.9333 80.5508 80.699 80.5508 92.1777 80.5508C103.656 80.5508 100.887 63.5348 109.06 63.5348C117.233 63.5348 117.217 91.9728 124.78 91.9728C132.343 91.9728 142.264 78.03 153.831 80.5508C165.398 83.0716 186.825 91.9728 193.761 91.9728C200.697 91.9728 206.296 63.5348 214.07 63.5348C221.844 63.5348 238.653 93.7771 244.234 91.9728C249.814 90.1684 258.8 60 266.19 60C272.075 60 284.1 88.057 286.678 88.0957C294.762 88.2171 300.192 72.9284 305.423 72.9284C312.323 72.9284 323.377 65.2437 335.553 63.5348C347.729 61.8259 348.218 82.07 363.639 80.5508C367.875 80.1335 372.949 82.2017 376.437 87.1008C379.446 91.3274 381.054 97.4325 382.521 104.647C383.479 109.364 382.521 123 382.521 123"
+                                            fill="url(#paint0_linear_0_106)"
+                                        />
+                                        <path
+                                            className="text-primary-600 dark:text-primary-500"
+                                            d="M3 121.077C3 121.077 15.3041 93.6691 36.0195 87.756C56.7349 81.8429 66.6632 80.9723 66.6632 80.9723C66.6632 80.9723 80.0327 80.9723 91.4656 80.9723C102.898 80.9723 100.415 64.2824 108.556 64.2824C116.696 64.2824 117.693 92.1332 125.226 92.1332C132.759 92.1332 142.07 78.5115 153.591 80.9723C165.113 83.433 186.092 92.1332 193 92.1332C199.908 92.1332 205.274 64.2824 213.017 64.2824C220.76 64.2824 237.832 93.8946 243.39 92.1332C248.948 90.3718 257.923 60.5 265.284 60.5C271.145 60.5 283.204 87.7182 285.772 87.756C293.823 87.8746 299.2 73.0802 304.411 73.0802C311.283 73.0802 321.425 65.9506 333.552 64.2824C345.68 62.6141 346.91 82.4553 362.27 80.9723C377.629 79.4892 383 106.605 383 106.605"
+                                            stroke="currentColor"
+                                            strokeWidth="3"
+                                        />
+                                        <defs>
+                                            <linearGradient id="paint0_linear_0_106" x1="3" y1="60" x2="3" y2="123" gradientUnits="userSpaceOnUse">
+                                                <stop className="text-primary/15 dark:text-primary/35" stopColor="currentColor" />
+                                                <stop className="text-transparent" offset="1" stopColor="currentColor" stopOpacity="0.103775" />
+                                            </linearGradient>
+                                            <clipPath id="clip0_0_106">
+                                                <rect width="358" height="30" fill="white" transform="translate(14 14)" />
+                                            </clipPath>
+                                        </defs>
+                                    </svg>
+                                </div>
+                                <div className="relative z-10 mt-14 space-y-2 text-center">
+                                    <h2 className="text-lg font-medium transition">Faster than light</h2>
+                                    <p className="text-foreground">Provident fugit vero voluptate. magnam magni doloribus dolores voluptates inventore nisi.</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="relative col-span-full overflow-hidden lg:col-span-3">
+                            <CardContent className="grid pt-6 sm:grid-cols-2">
+                                <div className="relative z-10 flex flex-col justify-between space-y-12 lg:space-y-6">
+                                    <div className="relative flex aspect-square size-12 rounded-full border before:absolute before:-inset-2 before:rounded-full before:border dark:border-white/10 dark:before:border-white/5">
+                                        <Shield className="m-auto size-5" strokeWidth={1} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h2 className="group-hover:text-secondary-950 text-lg font-medium text-zinc-800 transition dark:text-white">Faster than light</h2>
+                                        <p className="text-foreground">Provident fugit vero voluptate. Voluptates a sapiente inventore nisi.</p>
+                                    </div>
+                                </div>
+                                <div className="rounded-tl-(--radius) relative -mb-6 -mr-6 mt-6 h-fit border-l border-t p-6 py-6 sm:ml-6">
+                                    <div className="absolute left-3 top-2 flex gap-1">
+                                        <span className="block size-2 rounded-full border dark:border-white/10 dark:bg-white/10"></span>
+                                        <span className="block size-2 rounded-full border dark:border-white/10 dark:bg-white/10"></span>
+                                        <span className="block size-2 rounded-full border dark:border-white/10 dark:bg-white/10"></span>
+                                    </div>
+                                    <svg className="w-full sm:w-[150%]" viewBox="0 0 366 231" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            fillRule="evenodd"
+                                            clipRule="evenodd"
+                                            d="M0.148438 231V179.394L1.92188 180.322L2.94482 177.73L4.05663 183.933L6.77197 178.991L7.42505 184.284L9.42944 187.985L11.1128 191.306V155.455L13.6438 153.03V145.122L14.2197 142.829V150.454V154.842L15.5923 160.829L17.0793 172.215H19.2031V158.182L20.7441 153.03L22.426 148.111V142.407L24.7471 146.86V128.414L26.7725 129.918V120.916L28.1492 118.521L28.4653 127.438L29.1801 123.822L31.0426 120.525V130.26L32.3559 134.71L34.406 145.122V137.548L35.8982 130.26L37.1871 126.049L38.6578 134.71L40.659 138.977V130.26V126.049L43.7557 130.26V123.822L45.972 112.407L47.3391 103.407V92.4726L49.2133 98.4651V106.053L52.5797 89.7556L54.4559 82.7747L56.1181 87.9656L58.9383 89.7556V98.4651L60.7617 103.407L62.0545 123.822L63.8789 118.066L65.631 122.082L68.5479 114.229L70.299 109.729L71.8899 118.066L73.5785 123.822V130.26L74.9446 134.861L76.9243 127.87L78.352 134.71V138.977L80.0787 142.407V152.613L83.0415 142.407V130.26L86.791 123.822L89.0121 116.645V122.082L90.6059 127.87L92.3541 131.77L93.7104 123.822L95.4635 118.066L96.7553 122.082V137.548L99.7094 140.988V131.77L101.711 120.525L103.036 116.645V133.348L104.893 136.218L106.951 140.988L108.933 134.71L110.797 130.26L112.856 140.988V148.111L115.711 152.613L117.941 145.122L119.999 140.988V148.111L123.4 152.613L125.401 158.182L130.547 150.454V156.566L131.578 155.455L134.143 158.182L135.594 168.136L138.329 158.182L140.612 160.829L144.681 169.5L147.011 155.455L148.478 151.787L151.02 152.613L154.886 145.122L158 143.412L159.406 140.637L159.496 133.348L162.295 127.87V122.082L163.855 116.645V109.729L164.83 104.407L166.894 109.729L176.249 98.4651L178.254 106.169L180.77 98.4651V81.045L182.906 69.1641L184.8 56.8669L186.477 62.8428L187.848 79.7483L188.849 106.169L191.351 79.7483L193.485 75.645V98.4651L196.622 94.4523L198.623 87.4228V79.7483L200.717 75.645L202.276 81.045V89.3966L203.638 113.023L205.334 99.8037L207.164 94.4523L208.982 98.4651V102.176L211.267 107.64L212.788 81.045L214.437 66.0083L216.19 62.8428L217.941 56.8669V73.676V79.7483L220.28 75.645L222.516 66.0083V73.676H226.174V84.8662L228.566 98.4651L230.316 75.645L233.61 94.4523V104.25L236.882 102.176L239.543 113.023L241.057 98.4651L243.604 94.4523L244.975 106.169L245.975 87.4228L247.272 89.3966L250.732 84.8662L251.733 96.7549L254.644 94.4523L257.452 99.8037L259.853 91.3111L261.193 84.8662L264.162 75.645L265.808 87.4228L267.247 58.4895L269.757 66.0083L276.625 13.5146L273.33 58.4895L276.25 67.6563L282.377 20.1968L281.37 58.4895V66.0083L283.579 75.645L286.033 56.8669L287.436 73.676L290.628 77.6636L292.414 84.8662L294.214 61.3904L296.215 18.9623L300.826 0.947876L297.531 56.8669L299.973 62.8428L305.548 22.0598L299.755 114.956L301.907 105.378L304.192 112.688V94.9932L308.009 80.0829L310.003 94.9932L311.004 102.127L312.386 105.378L315.007 112.688L316.853 98.004L318.895 105.378L321.257 94.9932L324.349 100.81L325.032 80.0829L327.604 61.5733L329.308 82.3223L333.525 52.7986L334.097 52.145L334.735 55.6812L337.369 59.8108V73.676L340.743 87.9656L343.843 96.3728L348.594 82.7747L349.607 81.045L351 89.7556L352.611 96.3728L355.149 94.9932L356.688 102.176L359.396 108.784L360.684 111.757L365 95.7607V231H148.478H0.148438Z"
+                                            fill="url(#paint0_linear_0_705)"
+                                        />
+                                        <path
+                                            className="text-primary-600 dark:text-primary-500"
+                                            d="M1 179.796L4.05663 172.195V183.933L7.20122 174.398L8.45592 183.933L10.0546 186.948V155.455L12.6353 152.613V145.122L15.3021 134.71V149.804V155.455L16.6916 160.829L18.1222 172.195V158.182L19.8001 152.613L21.4105 148.111V137.548L23.6863 142.407V126.049L25.7658 127.87V120.525L27.2755 118.066L29.1801 112.407V123.822L31.0426 120.525V130.26L32.3559 134.71L34.406 145.122V137.548L35.8982 130.26L37.1871 126.049L38.6578 134.71L40.659 138.977V130.26V126.049L43.7557 130.26V123.822L45.972 112.407L47.3391 103.407V92.4726L49.2133 98.4651V106.053L52.5797 89.7556L54.4559 82.7747L56.1181 87.9656L58.9383 89.7556V98.4651L60.7617 103.407L62.0545 123.822L63.8789 118.066L65.631 122.082L68.5479 114.229L70.299 109.729L71.8899 118.066L73.5785 123.822V130.26L74.9446 134.861L76.9243 127.87L78.352 134.71V138.977L80.0787 142.407V152.613L83.0415 142.407V130.26L86.791 123.822L89.0121 116.645V122.082L90.6059 127.87L92.3541 131.77L93.7104 123.822L95.4635 118.066L96.7553 122.082V137.548L99.7094 140.988V131.77L101.711 120.525L103.036 116.645V133.348L104.893 136.218L106.951 140.988L108.933 134.71L110.797 130.26L112.856 140.988V148.111L115.711 152.613L117.941 145.122L119.999 140.988L121.501 148.111L123.4 152.613L125.401 158.182L127.992 152.613L131.578 146.76V155.455L134.143 158.182L135.818 164.629L138.329 158.182L140.612 160.829L144.117 166.757L146.118 155.455L147.823 149.804L151.02 152.613L154.886 145.122L158.496 140.988V133.348L161.295 127.87V122.082L162.855 116.645V109.729L164.83 103.407L166.894 109.729L176.249 98.4651L178.254 106.169L180.77 98.4651V81.045L182.906 69.1641L184.8 56.8669L186.477 62.8428L187.848 79.7483L188.849 106.169L191.351 79.7483L193.485 75.645V98.4651L196.622 94.4523L198.623 87.4228V79.7483L200.717 75.645L202.276 81.045V89.3966L203.638 113.023L205.334 99.8037L207.164 94.4523L208.982 98.4651V102.176L211.267 107.64L212.788 81.045L214.437 66.0083L216.19 62.8428L217.941 56.8669V73.676V79.7483L220.28 75.645L222.516 66.0083V73.676H226.174V84.8662L228.566 98.4651L230.316 75.645L233.61 94.4523V104.25L236.882 102.176L239.543 113.023L241.057 98.4651L243.604 94.4523L244.975 106.169L245.975 87.4228L247.272 89.3966L250.732 84.8662L251.733 96.7549L254.644 94.4523L257.452 99.8037L259.853 91.3111L261.193 84.8662L264.162 75.645L265.808 87.4228L267.247 58.4895L269.757 66.0083L276.625 13.5146L273.33 58.4895L276.25 67.6563L282.377 20.1968L281.37 58.4895V66.0083L283.579 75.645L286.033 56.8669L287.436 73.676L290.628 77.6636L292.414 84.8662L294.214 61.3904L296.215 18.9623L300.826 0.947876L297.531 56.8669L299.973 62.8428L305.548 22.0598L299.755 114.956L301.907 105.378L304.192 112.688V94.9932L308.009 80.0829L310.003 94.9932L311.004 102.127L312.386 105.378L315.007 112.688L316.853 98.004L318.895 105.378L321.257 94.9932L324.349 100.81L325.032 80.0829L327.604 61.5733L329.357 74.9864L332.611 52.6565L334.352 48.5552L335.785 55.2637L338.377 59.5888V73.426L341.699 87.5181L343.843 93.4347L347.714 82.1171L350.229 78.6821L351.974 89.7556L353.323 94.9932L355.821 93.4347L357.799 102.127L360.684 108.794L363.219 98.004L365 89.7556"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                        />
+                                        <defs>
+                                            <linearGradient id="paint0_linear_0_705" x1="0.85108" y1="0.947876" x2="0.85108" y2="230.114" gradientUnits="userSpaceOnUse">
+                                                <stop className="text-primary/15 dark:text-primary/35" stopColor="currentColor" />
+                                                <stop className="text-transparent" offset="1" stopColor="currentColor" stopOpacity="0.01" />
+                                            </linearGradient>
+                                        </defs>
+                                    </svg>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="relative col-span-full overflow-hidden lg:col-span-3">
+                            <CardContent className="grid h-full pt-6 sm:grid-cols-2">
+                                <div className="relative z-10 flex flex-col justify-between space-y-12 lg:space-y-6">
+                                    <div className="relative flex aspect-square size-12 rounded-full border before:absolute before:-inset-2 before:rounded-full before:border dark:border-white/10 dark:before:border-white/5">
+                                        <Users className="m-auto size-6" strokeWidth={1} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h2 className="text-lg font-medium transition">Keep your loved ones safe</h2>
+                                        <p className="text-foreground">Voluptate. magnam magni doloribus dolores voluptates a sapiente inventore nisi.</p>
+                                    </div>
+                                </div>
+                                <div className="before:bg-(--color-border) relative mt-6 before:absolute before:inset-0 before:mx-auto before:w-px sm:-my-6 sm:-mr-6">
+                                    <div className="relative flex h-full flex-col justify-center space-y-6 py-6">
+                                        <div className="relative flex w-[calc(50%+0.875rem)] items-center justify-end gap-2">
+                                            <span className="block h-fit rounded border px-2 py-1 text-xs shadow-sm">Likeur</span>
+                                            <div className="ring-background size-7 ring-4">
+                                                <img className="size-full rounded-full" src="https://avatars.githubusercontent.com/u/102558960?v=4" alt="" />
+                                            </div>
+                                        </div>
+                                        <div className="relative ml-[calc(50%-1rem)] flex items-center gap-2">
+                                            <div className="ring-background size-8 ring-4">
+                                                <img className="size-full rounded-full" src="https://avatars.githubusercontent.com/u/47919550?v=4" alt="" />
+                                            </div>
+                                            <span className="block h-fit rounded border px-2 py-1 text-xs shadow-sm">M. Irung</span>
+                                        </div>
+                                        <div className="relative flex w-[calc(50%+0.875rem)] items-center justify-end gap-2">
+                                            <span className="block h-fit rounded border px-2 py-1 text-xs shadow-sm">B. Ng</span>
+                                            <div className="ring-background size-7 ring-4">
+                                                <img className="size-full rounded-full" src="https://avatars.githubusercontent.com/u/31113941?v=4" alt="" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+            </div>
+        </section>
+    )
+}
+
+
+demo.tsx
+import { Features } from "@/components/blocks/features-8"
+
+export const Demo = () => {
+    return <Features />
+}
+```
+
+Copy-paste these files for dependencies:
+```tsx
+shadcn/card
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+const Card = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      className,
+    )}
+    {...props}
+  />
+))
+Card.displayName = "Card"
+
+const CardHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col space-y-1.5 p-6", className)}
+    {...props}
+  />
+))
+CardHeader.displayName = "CardHeader"
+
+const CardTitle = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn(
+      "text-2xl font-semibold leading-none tracking-tight",
+      className,
+    )}
+    {...props}
+  />
+))
+CardTitle.displayName = "CardTitle"
+
+const CardDescription = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLParagraphElement>
+>(({ className, ...props }, ref) => (
+  <p
+    ref={ref}
+    className={cn("text-sm text-muted-foreground", className)}
+    {...props}
+  />
+))
+CardDescription.displayName = "CardDescription"
+
+const CardContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+))
+CardContent.displayName = "CardContent"
+
+const CardFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex items-center p-6 pt-0", className)}
+    {...props}
+  />
+))
+CardFooter.displayName = "CardFooter"
+
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+
+```
+
+Install NPM dependencies:
+```bash
+lucide-react
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+
+********/
+
+Our Brands/ Client Section
+
+Prompt
+
+/********
+
+
+You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+logo-carousel.tsx
+"use client"
+
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type SVGProps,
+} from "react"
+import { AnimatePresence, motion } from "framer-motion"
+
+interface Logo {
+  name: string
+  id: number
+  img: React.ComponentType<React.SVGProps<SVGSVGElement>>
+}
+
+interface LogoColumnProps {
+  logos: Logo[]
+  index: number
+  currentTime: number
+}
+
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
+const distributeLogos = (allLogos: Logo[], columnCount: number): Logo[][] => {
+  const shuffled = shuffleArray(allLogos)
+  const columns: Logo[][] = Array.from({ length: columnCount }, () => [])
+
+  shuffled.forEach((logo, index) => {
+    columns[index % columnCount].push(logo)
+  })
+
+  const maxLength = Math.max(...columns.map((col) => col.length))
+  columns.forEach((col) => {
+    while (col.length < maxLength) {
+      col.push(shuffled[Math.floor(Math.random() * shuffled.length)])
+    }
+  })
+
+  return columns
+}
+
+const LogoColumn: React.FC<LogoColumnProps> = React.memo(
+  ({ logos, index, currentTime }) => {
+    const cycleInterval = 2000
+    const columnDelay = index * 200
+    const adjustedTime = (currentTime + columnDelay) % (cycleInterval * logos.length)
+    const currentIndex = Math.floor(adjustedTime / cycleInterval)
+    const CurrentLogo = useMemo(() => logos[currentIndex].img, [logos, currentIndex])
+
+    return (
+      <motion.div
+        className="relative h-14 w-24 overflow-hidden md:h-24 md:w-48"
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: index * 0.1,
+          duration: 0.5,
+          ease: "easeOut",
+        }}
+      >
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${logos[currentIndex].id}-${currentIndex}`}
+            className="absolute inset-0 flex items-center justify-center"
+            initial={{ y: "10%", opacity: 0, filter: "blur(8px)" }}
+            animate={{
+              y: "0%",
+              opacity: 1,
+              filter: "blur(0px)",
+              transition: {
+                type: "spring",
+                stiffness: 300,
+                damping: 20,
+                mass: 1,
+                bounce: 0.2,
+                duration: 0.5,
+              },
+            }}
+            exit={{
+              y: "-20%",
+              opacity: 0,
+              filter: "blur(6px)",
+              transition: {
+                type: "tween",
+                ease: "easeIn",
+                duration: 0.3,
+              },
+            }}
+          >
+            <CurrentLogo className="h-20 w-20 max-h-[80%] max-w-[80%] object-contain md:h-32 md:w-32" />
+          </motion.div>
+        </AnimatePresence>
+      </motion.div>
+    )
+  }
+)
+
+interface LogoCarouselProps {
+  columnCount?: number
+  logos: Logo[]
+}
+
+export function LogoCarousel({ columnCount = 2, logos }: LogoCarouselProps) {
+  const [logoSets, setLogoSets] = useState<Logo[][]>([])
+  const [currentTime, setCurrentTime] = useState(0)
+
+  const updateTime = useCallback(() => {
+    setCurrentTime((prevTime) => prevTime + 100)
+  }, [])
+
+  useEffect(() => {
+    const intervalId = setInterval(updateTime, 100)
+    return () => clearInterval(intervalId)
+  }, [updateTime])
+
+  useEffect(() => {
+    const distributedLogos = distributeLogos(logos, columnCount)
+    setLogoSets(distributedLogos)
+  }, [logos, columnCount])
+
+  return (
+    <div className="flex space-x-4">
+      {logoSets.map((logos, index) => (
+        <LogoColumn
+          key={index}
+          logos={logos}
+          index={index}
+          currentTime={currentTime}
+        />
+      ))}
+    </div>
+  )
+}
+
+export { LogoColumn };
+
+
+demo.tsx
+"use client";
+
+import React, { type SVGProps } from "react";
+import { GradientHeading } from "@/components/ui/gradient-heading";
+import { LogoCarousel } from "@/components/ui/logo-carousel";
+
+function AppleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="209"
+      height="256"
+      viewBox="0 0 814 1000"
+      {...props}
+    >
+      <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76.5 0-103.7 40.8-165.9 40.8s-105.6-57-155.5-127C46.7 790.7 0 663 0 541.8c0-194.4 126.4-297.5 250.8-297.5 66.1 0 121.2 43.4 162.7 43.4 39.5 0 101.1-46 176.3-46 28.5 0 130.9 2.6 198.3 99.2zm-234-181.5c31.1-36.9 53.1-88.1 53.1-139.3 0-7.1-.6-14.3-1.9-20.1-50.6 1.9-110.8 33.7-147.1 75.8-28.5 32.4-55.1 83.6-55.1 135.5 0 7.8 1.3 15.6 1.9 18.1 3.2.6 8.4 1.3 13.6 1.3 45.4 0 102.5-30.4 135.5-71.3z" />
+    </svg>
+  );
+}
+
+function PierreIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 74 20"
+      width={74}
+      height={20}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path
+        // fill="var(--color-fg)"
+        fill="black"
+        d="M2 0a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2V2a2 2 0 00-2-2H2zm33.134 14.398h-2.502V16h6.714v-1.602h-2.502V8.152c0-.384-.096-.666-.288-.846-.192-.192-.468-.288-.828-.288h-2.52V8.62h1.926v5.778zm-.342-9.108c.264.228.594.342.99.342s.726-.12.99-.36.396-.546.396-.918a1.11 1.11 0 00-.414-.9c-.264-.24-.594-.36-.99-.36-.384 0-.708.12-.972.36-.252.228-.378.528-.378.9 0 .384.126.696.378.936zm-12.55-1.98V16h1.926v-4.14h2.016c1.812 0 3.156-.324 4.032-.972.888-.648 1.332-1.752 1.332-3.312 0-1.044-.204-1.878-.612-2.502-.396-.636-.99-1.086-1.782-1.35-.78-.276-1.77-.414-2.97-.414h-3.942zm1.926 6.894V4.966h2.088c.732 0 1.338.072 1.818.216.492.144.87.408 1.134.792.276.372.414.906.414 1.602 0 .708-.138 1.254-.414 1.638-.264.384-.642.648-1.134.792-.48.132-1.086.198-1.818.198h-2.088zm24.622 1.674h-7.034c.031.82.258 1.486.68 1.998.456.552 1.11.828 1.962.828.708 0 1.278-.162 1.71-.486.432-.324.726-.78.882-1.368h1.836c-.204.984-.666 1.788-1.386 2.412-.708.612-1.71.918-3.006.918-.96 0-1.782-.204-2.466-.612a4.058 4.058 0 01-1.53-1.71c-.348-.72-.522-1.536-.522-2.448 0-.948.18-1.764.54-2.448a3.817 3.817 0 011.548-1.566c.672-.372 1.44-.558 2.304-.558.912 0 1.704.174 2.376.522a3.595 3.595 0 011.548 1.53c.372.66.558 1.446.558 2.358v.63zm-2.52-2.88c-.48-.48-1.128-.72-1.944-.72-.504 0-.954.108-1.35.324-.384.216-.69.534-.918.954a2.879 2.879 0 00-.31 1.116h5.232c-.05-.703-.286-1.26-.71-1.674zm4.554-1.656c-.216.216-.324.54-.324.972V16h1.854V8.62h4.716V7.018h-5.238c-.456 0-.792.108-1.008.324zm7.331.972c0-.432.108-.756.324-.972.216-.216.552-.324 1.008-.324h5.238V8.62H60.01V16h-1.854V8.314zm8.748 3.564h7.034v-.63c0-.912-.186-1.698-.558-2.358a3.595 3.595 0 00-1.548-1.53c-.672-.348-1.464-.522-2.376-.522-.864 0-1.632.186-2.304.558-.66.36-1.176.882-1.548 1.566-.36.684-.54 1.5-.54 2.448 0 .912.174 1.728.522 2.448.348.72.858 1.29 1.53 1.71.684.408 1.506.612 2.466.612 1.296 0 2.298-.306 3.006-.918.72-.624 1.182-1.428 1.386-2.412h-1.836c-.156.588-.45 1.044-.882 1.368-.432.324-1.002.486-1.71.486-.852 0-1.506-.276-1.962-.828-.423-.511-.65-1.178-.68-1.998zm5.224-1.206h-5.232c.035-.42.139-.793.31-1.116.228-.42.534-.738.918-.954a2.773 2.773 0 011.35-.324c.816 0 1.464.24 1.944.72.424.413.66.971.71 1.674z"
+      />
+    </svg>
+  );
+}
+
+function BMWIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      width="800px"
+      height="800px"
+      viewBox="0 0 498.503 498.503"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path d="M249.251 498.503c66.577 0 129.168-25.928 176.247-73.005 47.077-47.078 73.005-109.67 73.005-176.247 0-66.576-25.928-129.168-73.005-176.246C378.42 25.927 315.828 0 249.251 0 111.813 0 0 111.813 0 249.251c0 66.577 25.927 129.169 73.005 176.247 47.078 47.077 109.67 73.005 176.246 73.005z" />
+      <path
+        d="M8.624 249.251c0-64.272 25.03-124.699 70.479-170.148 45.449-45.45 105.875-70.479 170.148-70.479s124.7 25.029 170.148 70.479c45.449 45.449 70.479 105.875 70.479 170.148 0 132.683-107.945 240.628-240.627 240.628-64.273 0-124.699-25.03-170.148-70.479C33.654 373.95 8.624 313.524 8.624 249.251z"
+        fill="#fff"
+      />
+      <path d="M249.251 18.541c-127.416 0-230.71 103.294-230.71 230.71s103.294 230.711 230.71 230.711c127.416 0 230.71-103.295 230.71-230.711s-103.294-230.71-230.71-230.71z" />
+      <path
+        d="M249.251 396.621c-81.389 0-147.37-65.98-147.37-147.37 0-81.389 65.981-147.37 147.37-147.37 81.389 0 147.37 65.981 147.37 147.37 0 81.39-65.98 147.37-147.37 147.37z"
+        fill="#fff"
+      />
+      <path d="M111.362 249.251h137.889V111.362c-76.153 0-137.889 61.737-137.889 137.889zm137.889 0v137.89c76.153 0 137.889-61.736 137.889-137.89H249.251z" />
+      <path
+        d="M140.952 108.643c-4.885-4.748-12.436-6.179-19.525-1.784 1.354-3.509.801-7.09.082-9.066-3.054-5.569-4.12-6.266-6.637-8.378-8.148-6.837-16.723-1-22.856 6.309l-29.632 35.313 46.581 39.087 31.249-37.24c7.14-8.509 8.244-16.945.738-24.241zm116.018-16.78l15.997-42.401v42.401h12.158V31.137h-18.267l-16.615 43.479h.172L233.8 31.137h-18.266v60.726h12.157V49.462l15.998 42.401h13.281zm163.46 25.264l-22.89 32.407 35.486-16.847 9.396 11.603-55.854 27.075-11.027-13.727 21.969-32.123-.13-.161-35.989 14.81-11.135-13.64 38.097-49.004 9.396 11.603-23.857 31.208 36.458-15.652 10.08 12.448z"
+        fill="#fff"
+      />
+      <path d="M98.491 104.464c2.062-2.458 6.722-2.357 9.719.157 3.295 2.765 3.303 6.685 1.09 9.321l-17.597 20.971-11.01-9.239 17.798-21.21zm31.309 24.739l-18.553 22.11-11.634-9.762 18.703-22.29c2.112-2.517 6.821-3.25 9.997-.584 3.595 3.015 3.951 7.59 1.487 10.526z" />
+    </svg>
+  );
+}
+
+function LowesIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={91.239998}
+      height={42.970001}
+      {...props}
+    >
+      <defs>
+        <clipPath>
+          <path d="M22.8 704.934h119.143V768.6H22.8v-63.666z" />
+        </clipPath>
+      </defs>
+      <g fillOpacity={1} fillRule="nonzero" stroke="none">
+        <path
+          d="M155.876 378.285l-23.048 9.873h-14.376v4.027h-7.201v27.07h89.24v-27.07h-7.198v-4.027h-14.37l-23.047-9.873z"
+          fill="#004990"
+          transform="translate(-110.251 -377.285)"
+        />
+        <path
+          d="M177.157 395.357v4.377l2.83.005.59-4.38-3.42-.001zM192.465 399.15c.183 0 .348-.014.348-.237 0-.175-.163-.207-.313-.207h-.295v.443h.26zm-.26.802h-.216v-1.43h.545c.336 0 .504.125.504.407 0 .257-.159.368-.369.394l.406.629h-.242l-.378-.62h-.25v.62zm.263.32c.561 0 1.004-.439 1.004-1.038 0-.587-.443-1.03-1.004-1.03-.569 0-1.011.443-1.011 1.03 0 .599.442 1.038 1.011 1.038m-1.261-1.038c0-.712.577-1.237 1.261-1.237.676 0 1.255.525 1.255 1.237 0 .718-.579 1.245-1.255 1.245-.684 0-1.261-.527-1.261-1.245M125.486 410.27v-14.913h-4.079v18.465h10.39v-3.551h-6.31zM166.547 413.822h9.709v-3.556h-5.61v-2.317h5.61v-3.424h-5.61v-2.33h5.61v-3.571h-9.71V413.822zM141.12 402.195h-3.588v8.057h3.588v-8.057zm4.086 9.687a1.942 1.942 0 01-1.941 1.94h-7.879c-1.071 0-1.94-.87-1.94-1.94v-11.317a1.94 1.94 0 011.94-1.941h7.879a1.94 1.94 0 011.941 1.941v11.317zM160.128 398.624v11.647h-2.463v-11.647h-3.587v11.647h-2.463v-11.647h-4.086v13.257c0 1.072.869 1.942 1.941 1.942h4.83c.814 0 1.572-.562 1.572-1.376 0 .814.757 1.376 1.571 1.376h4.831c1.071 0 1.94-.87 1.94-1.942v-13.257h-4.086zM190.578 408.08h.001l-.025-.052-.048-.097-.025-.05c-.647-1.296-2.094-2.378-4.424-3.31l-.083-.032c-.46-.181-1.865-.73-2.02-1.623-.043-.25.058-.642.337-.88.293-.3.743-.453 1.337-.453.95 0 2.03.388 2.59.62 1.179.488 2.213.925 2.223.93l.102.043v-3.317l-.034-.021c-.022-.015-2.25-1.42-4.502-1.743a8.82 8.82 0 00-.761-.032c-2.073 0-3.643.752-4.665 2.237-.86 1.22-.954 3.151-.224 4.593.939 1.628 2.444 2.308 3.9 2.967.6.27 1.221.553 1.802.898l.006.004c.658.395.993.998.854 1.535-.144.556-.78.93-1.584.93-.11 0-.22-.006-.33-.022l-.038-.005c-1.547-.215-4.682-1.382-4.713-1.395l-.1-.037v3.637l.051.018c.03.01 3.064 1.015 5.758 1.015 1.47 0 2.58-.296 3.298-.879.018-.012 1.664-1.336 1.737-3.587.02-.623-.122-1.26-.42-1.893"
+          fill="#fff"
+          transform="translate(-110.251 -377.285)"
+        />
+      </g>
+    </svg>
+  );
+}
+
+function AllyLogo(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 556.10669 317.57333"
+      height={317.57333}
+      width={556.10669}
+      xmlSpace="preserve"
+      {...props}
+    >
+      <g fill="#231f20" fillOpacity={1} fillRule="nonzero" stroke="none">
+        <path
+          d="M548.344 1859.51c-384.121-81.02-686.297-521.93-483.106-981.428C187.582 619.078 442.133 491.941 622.191 482.43c71.602 77.968 295.704 316.23 370.196 396.949-300.801 0-363.321-7.598-428.965 28.211-230.047 125.42-233.309 455.81 42.637 555.5 159.511 49.79 388.398-48.7 388.398-308.76 0-94.52 2.363 1.73-1.484-274.951v-369.82h402.417v677.571c0 379.6-351.94 762.81-847.046 672.38M2201.24 509.27h417.51v1872.51h-417.51V509.27M1581.44 509.27h417.73v1872.51h-417.73V509.27M3734.44 1856.48l-272.31-824.55-285.58 824.55h-436.43L3249.3 509.27 3039.13 0h433.84l697.87 1856.48h-436.4M4023.77 533.082c-67.59 0-119.23 53.348-119.23 123.859 0 69.161 51.64 122.34 119.23 122.34 66.78 0 118.48-53.179 118.48-122.34 0-70.511-51.7-123.859-118.48-123.859zm0 267.387c-79.1 0-145.46-62.098-145.46-143.528 0-82.863 66.36-145.05 145.46-145.05 78.75 0 144.71 62.187 144.71 145.05 0 81.43-65.96 143.528-144.71 143.528"
+          transform="matrix(1.33333 0 0 -1.33333 0 317.573) scale(.1)"
+        />
+        <path
+          d="M4021.12 665.809h-27.4v53.55h34.68c17.76 0 37.09-3.32 37.09-25.738 0-26.551-21.29-27.812-44.37-27.812zm70.6 26.613c0 32.34-18.9 48.168-59.08 48.168h-65.27V572.031h26.35v72.617h27.77l45.98-72.617h28.12l-48.26 74.559c25.02 2.691 44.39 15.34 44.39 45.832"
+          transform="matrix(1.33333 0 0 -1.33333 0 317.573) scale(.1)"
+        />
+      </g>
+    </svg>
+  );
+}
+
+function VercelIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 256 222"
+      width="256"
+      height="222"
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="xMidYMid"
+      {...props}
+    >
+      <path fill="#000" d="m128 0 128 221.705H0z" />
+    </svg>
+  );
+}
+
+const StripeIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={512}
+    height={214}
+    viewBox="0 0 512 214"
+    {...props}
+  >
+    <path
+      fill="#FFC957"
+      d="M512 110.08c0-36.409-17.636-65.138-51.342-65.138c-33.85 0-54.33 28.73-54.33 64.854c0 42.808 24.179 64.426 58.88 64.426c16.925 0 29.725-3.84 39.396-9.244v-28.445c-9.67 4.836-20.764 7.823-34.844 7.823c-13.796 0-26.027-4.836-27.591-21.618h69.547c0-1.85.284-9.245.284-12.658m-70.258-13.511c0-16.071 9.814-22.756 18.774-22.756c8.675 0 17.92 6.685 17.92 22.756zm-90.31-51.627c-13.939 0-22.899 6.542-27.876 11.094l-1.85-8.818h-31.288v165.83l35.555-7.537l.143-40.249c5.12 3.698 12.657 8.96 25.173 8.96c25.458 0 48.64-20.48 48.64-65.564c-.142-41.245-23.609-63.716-48.498-63.716m-8.534 97.991c-8.391 0-13.37-2.986-16.782-6.684l-.143-52.765c3.698-4.124 8.818-6.968 16.925-6.968c12.942 0 21.902 14.506 21.902 33.137c0 19.058-8.818 33.28-21.902 33.28M241.493 36.551l35.698-7.68V0l-35.698 7.538zm0 10.809h35.698v124.444h-35.698zm-38.257 10.524L200.96 47.36h-30.72v124.444h35.556V87.467c8.39-10.951 22.613-8.96 27.022-7.396V47.36c-4.551-1.707-21.191-4.836-29.582 10.524m-71.112-41.386l-34.702 7.395l-.142 113.92c0 21.05 15.787 36.551 36.836 36.551c11.662 0 20.195-2.133 24.888-4.693V140.8c-4.55 1.849-27.022 8.391-27.022-12.658V77.653h27.022V47.36h-27.022zM35.982 83.484c0-5.546 4.551-7.68 12.09-7.68c10.808 0 24.461 3.272 35.27 9.103V51.484c-11.804-4.693-23.466-6.542-35.27-6.542C19.2 44.942 0 60.018 0 85.192c0 39.252 54.044 32.995 54.044 49.92c0 6.541-5.688 8.675-13.653 8.675c-11.804 0-26.88-4.836-38.827-11.378v33.849c13.227 5.689 26.596 8.106 38.827 8.106c29.582 0 49.92-14.648 49.92-40.106c-.142-42.382-54.329-34.845-54.329-50.774"
+    />
+  </svg>
+);
+
+const TypeScriptIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    viewBox="0 0 256 256"
+    width={256}
+    height={256}
+    xmlns="http://www.w3.org/2000/svg"
+    preserveAspectRatio="xMidYMid"
+    {...props}
+  >
+    <path
+      d="M20 0h216c11.046 0 20 8.954 20 20v216c0 11.046-8.954 20-20 20H20c-11.046 0-20-8.954-20-20V20C0 8.954 8.954 0 20 0Z"
+      fill="#3178C6"
+    />
+    <path
+      d="M150.518 200.475v27.62c4.492 2.302 9.805 4.028 15.938 5.179 6.133 1.151 12.597 1.726 19.393 1.726 6.622 0 12.914-.633 18.874-1.899 5.96-1.266 11.187-3.352 15.678-6.257 4.492-2.906 8.048-6.704 10.669-11.394 2.62-4.689 3.93-10.486 3.93-17.391 0-5.006-.749-9.394-2.246-13.163a30.748 30.748 0 0 0-6.479-10.055c-2.821-2.935-6.205-5.567-10.149-7.898-3.945-2.33-8.394-4.531-13.347-6.602-3.628-1.497-6.881-2.949-9.761-4.359-2.879-1.41-5.327-2.848-7.342-4.316-2.016-1.467-3.571-3.021-4.665-4.661-1.094-1.64-1.641-3.495-1.641-5.567 0-1.899.489-3.61 1.468-5.135s2.362-2.834 4.147-3.927c1.785-1.094 3.973-1.942 6.565-2.547 2.591-.604 5.471-.906 8.638-.906 2.304 0 4.737.173 7.299.518 2.563.345 5.14.877 7.732 1.597a53.669 53.669 0 0 1 7.558 2.719 41.7 41.7 0 0 1 6.781 3.797v-25.807c-4.204-1.611-8.797-2.805-13.778-3.582-4.981-.777-10.697-1.165-17.147-1.165-6.565 0-12.784.705-18.658 2.115-5.874 1.409-11.043 3.61-15.506 6.602-4.463 2.993-7.99 6.805-10.582 11.437-2.591 4.632-3.887 10.17-3.887 16.615 0 8.228 2.375 15.248 7.127 21.06 4.751 5.811 11.963 10.731 21.638 14.759a291.458 291.458 0 0 1 10.625 4.575c3.283 1.496 6.119 3.049 8.509 4.66 2.39 1.611 4.276 3.366 5.658 5.265 1.382 1.899 2.073 4.057 2.073 6.474a9.901 9.901 0 0 1-1.296 4.963c-.863 1.524-2.174 2.848-3.93 3.97-1.756 1.122-3.945 1.999-6.565 2.632-2.62.633-5.687.95-9.2.95-5.989 0-11.92-1.05-17.794-3.151-5.875-2.1-11.317-5.25-16.327-9.451Zm-46.036-68.733H140V109H41v22.742h35.345V233h28.137V131.742Z"
+      fill="#FFF"
+    />
+  </svg>
+);
+
+const ClaudeAIIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    shapeRendering="geometricPrecision"
+    textRendering="geometricPrecision"
+    imageRendering="optimizeQuality"
+    fillRule="evenodd"
+    clipRule="evenodd"
+    viewBox="0 0 512 512"
+    width={512}
+    height={512}
+    {...props}
+  >
+    <rect fill="#CC9B7A" width={512} height={512} rx={104.187} ry={105.042} />
+    <path
+      fill="#1F1F1E"
+      fillRule="nonzero"
+      d="M318.663 149.787h-43.368l78.952 212.423 43.368.004-78.952-212.427zm-125.326 0l-78.952 212.427h44.255l15.932-44.608 82.846-.004 16.107 44.612h44.255l-79.126-212.427h-45.317zm-4.251 128.341l26.91-74.701 27.083 74.701h-53.993z"
+    />
+  </svg>
+);
+
+function SupabaseIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 109 113"
+      width="109"
+      height="113"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path
+        d="M63.708 110.284c-2.86 3.601-8.658 1.628-8.727-2.97l-1.007-67.251h45.22c8.19 0 12.758 9.46 7.665 15.874l-43.151 54.347Z"
+        fill="url(#a)"
+      />
+      <path
+        d="M63.708 110.284c-2.86 3.601-8.658 1.628-8.727-2.97l-1.007-67.251h45.22c8.19 0 12.758 9.46 7.665 15.874l-43.151 54.347Z"
+        fill="url(#b)"
+        fillOpacity=".2"
+      />
+      <path
+        d="M45.317 2.071c2.86-3.601 8.657-1.628 8.726 2.97l.442 67.251H9.83c-8.19 0-12.759-9.46-7.665-15.875L45.317 2.072Z"
+        fill="#3ECF8E"
+      />
+      <defs>
+        <linearGradient
+          id="a"
+          x1="53.974"
+          y1="54.974"
+          x2="94.163"
+          y2="71.829"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#249361" />
+          <stop offset="1" stopColor="#3ECF8E" />
+        </linearGradient>
+        <linearGradient
+          id="b"
+          x1="36.156"
+          y1="30.578"
+          x2="54.484"
+          y2="65.081"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop />
+          <stop offset="1" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function OpenAIIconBlack(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="256"
+      height="260"
+      preserveAspectRatio="xMidYMid"
+      viewBox="0 0 256 260"
+      {...props}
+    >
+      <path
+        className="fill-black"
+        d="M239.184 106.203a64.716 64.716 0 0 0-5.576-53.103C219.452 28.459 191 15.784 163.213 21.74A65.586 65.586 0 0 0 52.096 45.22a64.716 64.716 0 0 0-43.23 31.36c-14.31 24.602-11.061 55.634 8.033 76.74a64.665 64.665 0 0 0 5.525 53.102c14.174 24.65 42.644 37.324 70.446 31.36a64.72 64.72 0 0 0 48.754 21.744c28.481.025 53.714-18.361 62.414-45.481a64.767 64.767 0 0 0 43.229-31.36c14.137-24.558 10.875-55.423-8.083-76.483Zm-97.56 136.338a48.397 48.397 0 0 1-31.105-11.255l1.535-.87 51.67-29.825a8.595 8.595 0 0 0 4.247-7.367v-72.85l21.845 12.636c.218.111.37.32.409.563v60.367c-.056 26.818-21.783 48.545-48.601 48.601Zm-104.466-44.61a48.345 48.345 0 0 1-5.781-32.589l1.534.921 51.722 29.826a8.339 8.339 0 0 0 8.441 0l63.181-36.425v25.221a.87.87 0 0 1-.358.665l-52.335 30.184c-23.257 13.398-52.97 5.431-66.404-17.803ZM23.549 85.38a48.499 48.499 0 0 1 25.58-21.333v61.39a8.288 8.288 0 0 0 4.195 7.316l62.874 36.272-21.845 12.636a.819.819 0 0 1-.767 0L41.353 151.53c-23.211-13.454-31.171-43.144-17.804-66.405v.256Zm179.466 41.695-63.08-36.63L161.73 77.86a.819.819 0 0 1 .768 0l52.233 30.184a48.6 48.6 0 0 1-7.316 87.635v-61.391a8.544 8.544 0 0 0-4.4-7.213Zm21.742-32.69-1.535-.922-51.619-30.081a8.39 8.39 0 0 0-8.492 0L99.98 99.808V74.587a.716.716 0 0 1 .307-.665l52.233-30.133a48.652 48.652 0 0 1 72.236 50.391v.205ZM88.061 139.097l-21.845-12.585a.87.87 0 0 1-.41-.614V65.685a48.652 48.652 0 0 1 79.757-37.346l-1.535.87-51.67 29.825a8.595 8.595 0 0 0-4.246 7.367l-.051 72.697Zm11.868-25.58 28.138-16.217 28.188 16.218v32.434l-28.086 16.218-28.188-16.218-.052-32.434Z"
+      />
+    </svg>
+  );
+}
+
+function UpstashIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox="0 0 256 341"
+      xmlns="http://www.w3.org/2000/svg"
+      width="256"
+      height="341"
+      preserveAspectRatio="xMidYMid"
+    >
+      <path
+        fill="#00C98D"
+        d="M0 298.417c56.554 56.553 148.247 56.553 204.801 0 56.554-56.554 56.554-148.247 0-204.801l-25.6 25.6c42.415 42.416 42.415 111.185 0 153.6-42.416 42.416-111.185 42.416-153.601 0L0 298.416Z"
+      />
+      <path
+        fill="#00C98D"
+        d="M51.2 247.216c28.277 28.277 74.123 28.277 102.4 0 28.277-28.276 28.277-74.123 0-102.4l-25.6 25.6c14.14 14.138 14.14 37.061 0 51.2-14.138 14.139-37.061 14.139-51.2 0l-25.6 25.6ZM256 42.415c-56.554-56.553-148.247-56.553-204.8 0-56.555 56.555-56.555 148.247 0 204.801l25.599-25.6c-42.415-42.415-42.415-111.185 0-153.6 42.416-42.416 111.185-42.416 153.6 0L256 42.416Z"
+      />
+      <path
+        fill="#00C98D"
+        d="M204.8 93.616c-28.276-28.277-74.124-28.277-102.4 0-28.278 28.277-28.278 74.123 0 102.4l25.6-25.6c-14.14-14.138-14.14-37.061 0-51.2 14.138-14.139 37.06-14.139 51.2 0l25.6-25.6Z"
+      />
+      <path
+        fill="#FFF"
+        fillOpacity=".4"
+        d="M256 42.415c-56.554-56.553-148.247-56.553-204.8 0-56.555 56.555-56.555 148.247 0 204.801l25.599-25.6c-42.415-42.415-42.415-111.185 0-153.6 42.416-42.416 111.185-42.416 153.6 0L256 42.416Z"
+      />
+      <path
+        fill="#FFF"
+        fillOpacity=".4"
+        d="M204.8 93.616c-28.276-28.277-74.124-28.277-102.4 0-28.278 28.277-28.278 74.123 0 102.4l25.6-25.6c-14.14-14.138-14.14-37.061 0-51.2 14.138-14.139 37.06-14.139 51.2 0l25.6-25.6Z"
+      />
+    </svg>
+  );
+}
+
+const TailwindCSSIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 54 33"
+    {...props}
+  >
+    <g clipPath="url(#prefix__clip0)">
+      <path
+        fill="#38bdf8"
+        fillRule="evenodd"
+        d="M27 0c-7.2 0-11.7 3.6-13.5 10.8 2.7-3.6 5.85-4.95 9.45-4.05 2.054.513 3.522 2.004 5.147 3.653C30.744 13.09 33.808 16.2 40.5 16.2c7.2 0 11.7-3.6 13.5-10.8-2.7 3.6-5.85 4.95-9.45 4.05-2.054-.513-3.522-2.004-5.147-3.653C36.756 3.11 33.692 0 27 0zM13.5 16.2C6.3 16.2 1.8 19.8 0 27c2.7-3.6 5.85-4.95 9.45-4.05 2.054.514 3.522 2.004 5.147 3.653C17.244 29.29 20.308 32.4 27 32.4c7.2 0 11.7-3.6 13.5-10.8-2.7 3.6-5.85 4.95-9.45 4.05-2.054-.513-3.522-2.004-5.147-3.653C23.256 19.31 20.192 16.2 13.5 16.2z"
+        clipRule="evenodd"
+      />
+    </g>
+    <defs>
+      <clipPath id="prefix__clip0">
+        <path fill="#fff" d="M0 0h54v32.4H0z" />
+      </clipPath>
+    </defs>
+  </svg>
+);
+
+const NextjsIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    width={180}
+    height={180}
+    viewBox="0 0 180 180"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <mask
+      id="mask0_408_139"
+      style={{
+        maskType: "alpha",
+      }}
+      maskUnits="userSpaceOnUse"
+      x={0}
+      y={0}
+      width={180}
+      height={180}
+    >
+      <circle cx={90} cy={90} r={90} fill="black" />
+    </mask>
+    <g mask="url(#mask0_408_139)">
+      <circle
+        cx={90}
+        cy={90}
+        r={87}
+        fill="black"
+        stroke="white"
+        strokeWidth={6}
+      />
+      <path
+        d="M149.508 157.52L69.142 54H54V125.97H66.1136V69.3836L139.999 164.845C143.333 162.614 146.509 160.165 149.508 157.52Z"
+        fill="url(#paint0_linear_408_139)"
+      />
+      <rect
+        x={115}
+        y={54}
+        width={12}
+        height={72}
+        fill="url(#paint1_linear_408_139)"
+      />
+    </g>
+    <defs>
+      <linearGradient
+        id="paint0_linear_408_139"
+        x1={109}
+        y1={116.5}
+        x2={144.5}
+        y2={160.5}
+        gradientUnits="userSpaceOnUse"
+      >
+        <stop stopColor="white" />
+        <stop offset={1} stopColor="white" stopOpacity={0} />
+      </linearGradient>
+      <linearGradient
+        id="paint1_linear_408_139"
+        x1={121}
+        y1={54}
+        x2={120.799}
+        y2={106.875}
+        gradientUnits="userSpaceOnUse"
+      >
+        <stop stopColor="white" />
+        <stop offset={1} stopColor="white" stopOpacity={0} />
+      </linearGradient>
+    </defs>
+  </svg>
+);
+
+// Массив с логотипами
+const allLogos = [
+  { name: "Apple", id: 1, img: AppleIcon },
+  { name: "CEO Supabase", id: 2, img: SupabaseIcon },
+  { name: "Vercel", id: 3, img: VercelIcon },
+  { name: "Lowes", id: 4, img: LowesIcon },
+  { name: "Ally", id: 5, img: AllyLogo },
+  { name: "Pierre", id: 6, img: PierreIcon },
+  { name: "BMW", id: 7, img: BMWIcon },
+  { name: "Claude", id: 8, img: ClaudeAIIcon },
+  { name: "Nextjs", id: 9, img: NextjsIcon },
+  { name: "Tailwind", id: 10, img: TailwindCSSIcon },
+  { name: "Upstash", id: 11, img: UpstashIcon },
+  { name: "Typescript", id: 12, img: TypeScriptIcon },
+  { name: "Stripe", id: 13, img: StripeIcon },
+  { name: "OpenAI", id: 14, img: OpenAIIconBlack },
+];
+
+export function LogoCarouselDemo() {
+  return (
+    <div className="space-y-8 py-24">
+      <div className="mx-auto flex w-full max-w-screen-lg flex-col items-center space-y-8">
+        <div className="text-center">
+          <GradientHeading variant="secondary">
+            The best are already here
+          </GradientHeading>
+          <a href="https://www.newcult.co" target="_blank">
+            <GradientHeading size="xxl">Join new cult</GradientHeading>
+          </a>
+        </div>
+
+        <LogoCarousel columnCount={3} logos={allLogos} /> 
+      </div>
+    </div>
+  );
+}
+
+```
+
+Copy-paste these files for dependencies:
+```tsx
+cult-ui/gradient-heading
+import React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const headingVariants = cva(
+  "tracking-tight pb-3 bg-clip-text text-transparent",
+  {
+    variants: {
+      variant: {
+        default:
+          "bg-gradient-to-t from-neutral-700 to-neutral-800 dark:from-stone-200 dark:to-neutral-200",
+        pink: "bg-gradient-to-t from-accent to-accent/90 dark:from-stone-200 dark:to-neutral-200",
+        light: "bg-gradient-to-t from-neutral-200 to-neutral-300",
+        secondary:
+          "bg-gradient-to-t from-neutral-500 to-neutral-600 dark:from-stone-200 dark:to-neutral-200",
+      },
+      size: {
+        default: "text-2xl sm:text-3xl lg:text-4xl",
+        xxs: "text-base sm:text-lg lg:text-lg",
+        xs: "text-lg sm:text-xl lg:text-2xl",
+        sm: "text-xl sm:text-2xl lg:text-3xl",
+        md: "text-2xl sm:text-3xl lg:text-4xl",
+        lg: "text-3xl sm:text-4xl lg:text-5xl",
+        xl: "text-4xl sm:text-5xl lg:text-6xl",
+        xll: "text-5xl sm:text-6xl lg:text-[5.4rem]  lg:leading-[0.5rem] ",
+        xxl: "text-5xl sm:text-6xl lg:text-[6rem]",
+        xxxl: "text-5xl sm:text-6xl lg:text-[8rem]",
+      },
+      weight: {
+        default: "font-bold",
+        thin: "font-thin",
+        base: "font-base",
+        semi: "font-semibold",
+        bold: "font-bold",
+        black: "font-black",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+      weight: "default",
+    },
+  }
+)
+
+export interface HeadingProps extends VariantProps<typeof headingVariants> {
+  asChild?: boolean
+  children: React.ReactNode
+  className?: string
+}
+
+const GradientHeading = React.forwardRef<HTMLHeadingElement, HeadingProps>(
+  ({ asChild, variant, weight, size, className, children, ...props }, ref) => {
+    const Comp = asChild ? Slot : "h3" // default to 'h3' if not a child
+    return (
+      <Comp ref={ref} {...props} className={className}>
+        <span className={cn(headingVariants({ variant, size, weight }))}>
+          {children}
+        </span>
+      </Comp>
+    )
+  }
+)
+
+GradientHeading.displayName = "GradientHeading"
+
+// Manually define the variant types
+export type Variant = "default" | "pink" | "light" | "secondary"
+export type Size =
+  | "default"
+  | "xxs"
+  | "xs"
+  | "sm"
+  | "md"
+  | "lg"
+  | "xl"
+  | "xxl"
+  | "xxxl"
+export type Weight = "default" | "thin" | "base" | "semi" | "bold" | "black"
+
+export { GradientHeading, headingVariants }
+
+```
+
+Install NPM dependencies:
+```bash
+framer-motion, @radix-ui/react-slot, class-variance-authority
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+
+**********/
+
+Team Section Prompt:
+
+***********
+
+You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+animated-testimonials.tsx
+"use client";
+
+import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
+import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
+import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
+
+type Testimonial = {
+  quote: string;
+  name: string;
+  designation: string;
+  src: string;
+};
+
+export const AnimatedTestimonials = ({
+  testimonials,
+  autoplay = false,
+  className,
+}: {
+  testimonials: Testimonial[];
+  autoplay?: boolean;
+  className?: string;
+}) => {
+  const [active, setActive] = useState(0);
+
+  const handleNext = () => {
+    setActive((prev) => (prev + 1) % testimonials.length);
+  };
+
+  const handlePrev = () => {
+    setActive((prev) => (prev - 1 + testimonials.length) % testimonials.length);
+  };
+
+  const isActive = (index: number) => {
+    return index === active;
+  };
+
+  useEffect(() => {
+    if (autoplay) {
+      const interval = setInterval(handleNext, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [autoplay]);
+
+  const randomRotateY = () => {
+    return Math.floor(Math.random() * 21) - 10;
+  };
+
+  return (
+    <div className={cn("max-w-sm md:max-w-4xl mx-auto px-4 md:px-8 lg:px-12 py-20", className)}>
+      <div className="relative grid grid-cols-1 md:grid-cols-2 gap-20">
+        <div>
+          <div className="relative h-80 w-full">
+            <AnimatePresence>
+              {testimonials.map((testimonial, index) => (
+                <motion.div
+                  key={testimonial.src}
+                  initial={{
+                    opacity: 0,
+                    scale: 0.9,
+                    z: -100,
+                    rotate: randomRotateY(),
+                  }}
+                  animate={{
+                    opacity: isActive(index) ? 1 : 0.7,
+                    scale: isActive(index) ? 1 : 0.95,
+                    z: isActive(index) ? 0 : -100,
+                    rotate: isActive(index) ? 0 : randomRotateY(),
+                    zIndex: isActive(index)
+                      ? 999
+                      : testimonials.length + 2 - index,
+                    y: isActive(index) ? [0, -80, 0] : 0,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    scale: 0.9,
+                    z: 100,
+                    rotate: randomRotateY(),
+                  }}
+                  transition={{
+                    duration: 0.4,
+                    ease: "easeInOut",
+                  }}
+                  className="absolute inset-0 origin-bottom"
+                >
+                  <Image
+                    src={testimonial.src}
+                    alt={testimonial.name}
+                    width={500}
+                    height={500}
+                    draggable={false}
+                    className="h-full w-full rounded-3xl object-cover object-center"
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
+        <div className="flex justify-between flex-col py-4">
+          <motion.div
+            key={active}
+            initial={{
+              y: 20,
+              opacity: 0,
+            }}
+            animate={{
+              y: 0,
+              opacity: 1,
+            }}
+            exit={{
+              y: -20,
+              opacity: 0,
+            }}
+            transition={{
+              duration: 0.2,
+              ease: "easeInOut",
+            }}
+          >
+            <h3 className="text-2xl font-bold text-foreground">
+              {testimonials[active].name}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {testimonials[active].designation}
+            </p>
+            <motion.p className="text-lg text-muted-foreground mt-8">
+              {testimonials[active].quote.split(" ").map((word, index) => (
+                <motion.span
+                  key={index}
+                  initial={{
+                    filter: "blur(10px)",
+                    opacity: 0,
+                    y: 5,
+                  }}
+                  animate={{
+                    filter: "blur(0px)",
+                    opacity: 1,
+                    y: 0,
+                  }}
+                  transition={{
+                    duration: 0.2,
+                    ease: "easeInOut",
+                    delay: 0.02 * index,
+                  }}
+                  className="inline-block"
+                >
+                  {word}&nbsp;
+                </motion.span>
+              ))}
+            </motion.p>
+          </motion.div>
+          <div className="flex gap-4 pt-12 md:pt-0">
+            <button
+              onClick={handlePrev}
+              className="h-7 w-7 rounded-full bg-secondary flex items-center justify-center group/button"
+            >
+              <IconArrowLeft className="h-5 w-5 text-foreground group-hover/button:rotate-12 transition-transform duration-300" />
+            </button>
+            <button
+              onClick={handleNext}
+              className="h-7 w-7 rounded-full bg-secondary flex items-center justify-center group/button"
+            >
+              <IconArrowRight className="h-5 w-5 text-foreground group-hover/button:-rotate-12 transition-transform duration-300" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+demo.tsx
+import { AnimatedTestimonials } from "@/components/ui/animated-testimonials";
+
+function AnimatedTestimonialsDemo() {
+  const testimonials = [
+    {
+      quote:
+        "The attention to detail and innovative features have completely transformed our workflow. This is exactly what we've been looking for.",
+      name: "Sarah Chen",
+      designation: "Product Manager at TechFlow",
+      src: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=3560&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    },
+    {
+      quote:
+        "Implementation was seamless and the results exceeded our expectations. The platform's flexibility is remarkable.",
+      name: "Michael Rodriguez",
+      designation: "CTO at InnovateSphere",
+      src: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=3540&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    },
+    {
+      quote:
+        "This solution has significantly improved our team's productivity. The intuitive interface makes complex tasks simple.",
+      name: "Emily Watson",
+      designation: "Operations Director at CloudScale",
+      src: "https://images.unsplash.com/photo-1623582854588-d60de57fa33f?q=80&w=3540&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    },
+    {
+      quote:
+        "Outstanding support and robust features. It's rare to find a product that delivers on all its promises.",
+      name: "James Kim",
+      designation: "Engineering Lead at DataPro",
+      src: "https://images.unsplash.com/photo-1636041293178-808a6762ab39?q=80&w=3464&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    },
+    {
+      quote:
+        "The scalability and performance have been game-changing for our organization. Highly recommend to any growing business.",
+      name: "Lisa Thompson",
+      designation: "VP of Technology at FutureNet",
+      src: "https://images.unsplash.com/photo-1624561172888-ac93c696e10c?q=80&w=2592&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    },
+  ];
+  return <AnimatedTestimonials testimonials={testimonials} />;
+}
+
+export { AnimatedTestimonialsDemo };
+
+```
+
+Install NPM dependencies:
+```bash
+framer-motion, @tabler/icons-react
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+///*******
+
+Use Where u want to us prompt:***////
+
+
+You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+display-cards.tsx
+"use client";
+
+import { cn } from "@/lib/utils";
+import { Sparkles } from "lucide-react";
+
+interface DisplayCardProps {
+  className?: string;
+  icon?: React.ReactNode;
+  title?: string;
+  description?: string;
+  date?: string;
+  iconClassName?: string;
+  titleClassName?: string;
+}
+
+function DisplayCard({
+  className,
+  icon = <Sparkles className="size-4 text-blue-300" />,
+  title = "Featured",
+  description = "Discover amazing content",
+  date = "Just now",
+  iconClassName = "text-blue-500",
+  titleClassName = "text-blue-500",
+}: DisplayCardProps) {
+  return (
+    <div
+      className={cn(
+        "relative flex h-36 w-[22rem] -skew-y-[8deg] select-none flex-col justify-between rounded-xl border-2 bg-muted/70 backdrop-blur-sm px-4 py-3 transition-all duration-700 after:absolute after:-right-1 after:top-[-5%] after:h-[110%] after:w-[20rem] after:bg-gradient-to-l after:from-background after:to-transparent after:content-[''] hover:border-white/20 hover:bg-muted [&>*]:flex [&>*]:items-center [&>*]:gap-2",
+        className
+      )}
+    >
+      <div>
+        <span className="relative inline-block rounded-full bg-blue-800 p-1">
+          {icon}
+        </span>
+        <p className={cn("text-lg font-medium", titleClassName)}>{title}</p>
+      </div>
+      <p className="whitespace-nowrap text-lg">{description}</p>
+      <p className="text-muted-foreground">{date}</p>
+    </div>
+  );
+}
+
+interface DisplayCardsProps {
+  cards?: DisplayCardProps[];
+}
+
+export default function DisplayCards({ cards }: DisplayCardsProps) {
+  const defaultCards = [
+    {
+      className: "[grid-area:stack] hover:-translate-y-10 before:absolute before:w-[100%] before:outline-1 before:rounded-xl before:outline-border before:h-[100%] before:content-[''] before:bg-blend-overlay before:bg-background/50 grayscale-[100%] hover:before:opacity-0 before:transition-opacity before:duration:700 hover:grayscale-0 before:left-0 before:top-0",
+    },
+    {
+      className: "[grid-area:stack] translate-x-16 translate-y-10 hover:-translate-y-1 before:absolute before:w-[100%] before:outline-1 before:rounded-xl before:outline-border before:h-[100%] before:content-[''] before:bg-blend-overlay before:bg-background/50 grayscale-[100%] hover:before:opacity-0 before:transition-opacity before:duration:700 hover:grayscale-0 before:left-0 before:top-0",
+    },
+    {
+      className: "[grid-area:stack] translate-x-32 translate-y-20 hover:translate-y-10",
+    },
+  ];
+
+  const displayCards = cards || defaultCards;
+
+  return (
+    <div className="grid [grid-template-areas:'stack'] place-items-center opacity-100 animate-in fade-in-0 duration-700">
+      {displayCards.map((cardProps, index) => (
+        <DisplayCard key={index} {...cardProps} />
+      ))}
+    </div>
+  );
+}
+
+demo.tsx
+"use client";
+
+import DisplayCards from "@/components/ui/display-cards";
+import { Sparkles } from "lucide-react";
+
+const defaultCards = [
+  {
+    icon: <Sparkles className="size-4 text-blue-300" />,
+    title: "Featured",
+    description: "Discover amazing content",
+    date: "Just now",
+    iconClassName: "text-blue-500",
+    titleClassName: "text-blue-500",
+    className:
+      "[grid-area:stack] hover:-translate-y-10 before:absolute before:w-[100%] before:outline-1 before:rounded-xl before:outline-border before:h-[100%] before:content-[''] before:bg-blend-overlay before:bg-background/50 grayscale-[100%] hover:before:opacity-0 before:transition-opacity before:duration-700 hover:grayscale-0 before:left-0 before:top-0",
+  },
+  {
+    icon: <Sparkles className="size-4 text-blue-300" />,
+    title: "Popular",
+    description: "Trending this week",
+    date: "2 days ago",
+    iconClassName: "text-blue-500",
+    titleClassName: "text-blue-500",
+    className:
+      "[grid-area:stack] translate-x-12 translate-y-10 hover:-translate-y-1 before:absolute before:w-[100%] before:outline-1 before:rounded-xl before:outline-border before:h-[100%] before:content-[''] before:bg-blend-overlay before:bg-background/50 grayscale-[100%] hover:before:opacity-0 before:transition-opacity before:duration-700 hover:grayscale-0 before:left-0 before:top-0",
+  },
+  {
+    icon: <Sparkles className="size-4 text-blue-300" />,
+    title: "New",
+    description: "Latest updates and features",
+    date: "Today",
+    iconClassName: "text-blue-500",
+    titleClassName: "text-blue-500",
+    className:
+      "[grid-area:stack] translate-x-24 translate-y-20 hover:translate-y-10",
+  },
+];
+
+function DisplayCardsDemo() {
+  return (
+    <div className="flex min-h-[400px] w-full items-center justify-center py-20">
+      <div className="w-full max-w-3xl">
+        <DisplayCards cards={defaultCards} />
+      </div>
+    </div>
+  );
+}
+
+export { DisplayCardsDemo };
+
+```
+
+Install NPM dependencies:
+```bash
+lucide-react
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+
+//*****Career Section ***////
+
+
+Lanyard
+Preview
+Code
+Contribute
+Install
+
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+npm install three meshline @react-three/fiber @react-three/drei @react-three/rapier
+usage
+import Lanyard from './Lanyard'
+
+<Lanyard position={[0, 0, 20]} gravity={[0, -40, 0]} />
+
+/* IMPORTANT INFO BELOW
+
+1. You MUST have the card.glb and lanyard.png files in your project and import them
+- these can be downloaded from the repo's files, under src/assets/lanyard
+
+2. You can edit your card.glb file in this online .glb editor and change the texture:
+- https://modelviewer.dev/editor/
+
+4. The png file is the texture for the lanyard's band and can be edited in any image editor
+
+5. Your Vite configuration must be updated to include the following in vite.config.js:
+assetsInclude: ['**/*.glb']
+
+6. For TS users, you might need these changes:
+
+- src/global.d.ts
+export { };
+
+declare module '*.glb';
+declare module '*.png';
+
+declare module 'meshline' {
+  export const MeshLineGeometry: any;
+  export const MeshLineMaterial: any;
+}
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      meshLineGeometry: any;
+      meshLineMaterial: any;
+    }
+  }
+}
+
+- src/vite-env.d.ts
+/// <reference types="vite/client" />
+declare module '*.glb';
+declare module '*.png';
+*/
+code
+
+
+/* eslint-disable react/no-unknown-property */
+'use client';
+import { useEffect, useRef, useState } from 'react';
+import { Canvas, extend, useFrame } from '@react-three/fiber';
+import { useGLTF, useTexture, Environment, Lightformer } from '@react-three/drei';
+import { BallCollider, CuboidCollider, Physics, RigidBody, useRopeJoint, useSphericalJoint } from '@react-three/rapier';
+import { MeshLineGeometry, MeshLineMaterial } from 'meshline';
+
+// replace with your own imports, see the usage snippet for details
+import cardGLB from './card.glb';
+import lanyard from './lanyard.png';
+
+import * as THREE from 'three';
+import './Lanyard.css';
+
+extend({ MeshLineGeometry, MeshLineMaterial });
+
+export default function Lanyard({ position = [0, 0, 30], gravity = [0, -40, 0], fov = 20, transparent = true }) {
+  return (
+    <div className="lanyard-wrapper">
+      <Canvas
+        camera={{ position: position, fov: fov }}
+        gl={{ alpha: transparent }}
+        onCreated={({ gl }) => gl.setClearColor(new THREE.Color(0x000000), transparent ? 0 : 1)}
+      >
+        <ambientLight intensity={Math.PI} />
+        <Physics gravity={gravity} timeStep={1 / 60}>
+          <Band />
+        </Physics>
+        <Environment blur={0.75}>
+          <Lightformer
+            intensity={2}
+            color="white"
+            position={[0, -1, 5]}
+            rotation={[0, 0, Math.PI / 3]}
+            scale={[100, 0.1, 1]}
+          />
+          <Lightformer
+            intensity={3}
+            color="white"
+            position={[-1, -1, 1]}
+            rotation={[0, 0, Math.PI / 3]}
+            scale={[100, 0.1, 1]}
+          />
+          <Lightformer
+            intensity={3}
+            color="white"
+            position={[1, 1, 1]}
+            rotation={[0, 0, Math.PI / 3]}
+            scale={[100, 0.1, 1]}
+          />
+          <Lightformer
+            intensity={10}
+            color="white"
+            position={[-10, 0, 14]}
+            rotation={[0, Math.PI / 2, Math.PI / 3]}
+            scale={[100, 10, 1]}
+          />
+        </Environment>
+      </Canvas>
+    </div>
+  );
+}
+function Band({ maxSpeed = 50, minSpeed = 0 }) {
+  const band = useRef(),
+    fixed = useRef(),
+    j1 = useRef(),
+    j2 = useRef(),
+    j3 = useRef(),
+    card = useRef();
+  const vec = new THREE.Vector3(),
+    ang = new THREE.Vector3(),
+    rot = new THREE.Vector3(),
+    dir = new THREE.Vector3();
+  const segmentProps = { type: 'dynamic', canSleep: true, colliders: false, angularDamping: 4, linearDamping: 4 };
+  const { nodes, materials } = useGLTF(cardGLB);
+  const texture = useTexture(lanyard);
+  const [curve] = useState(
+    () =>
+      new THREE.CatmullRomCurve3([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()])
+  );
+  const [dragged, drag] = useState(false);
+  const [hovered, hover] = useState(false);
+  const [isSmall, setIsSmall] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1024);
+
+  useRopeJoint(fixed, j1, [[0, 0, 0], [0, 0, 0], 1]);
+  useRopeJoint(j1, j2, [[0, 0, 0], [0, 0, 0], 1]);
+  useRopeJoint(j2, j3, [[0, 0, 0], [0, 0, 0], 1]);
+  useSphericalJoint(j3, card, [
+    [0, 0, 0],
+    [0, 1.5, 0]
+  ]);
+
+  useEffect(() => {
+    if (hovered) {
+      document.body.style.cursor = dragged ? 'grabbing' : 'grab';
+      return () => void (document.body.style.cursor = 'auto');
+    }
+  }, [hovered, dragged]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsSmall(window.innerWidth < 1024);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useFrame((state, delta) => {
+    if (dragged) {
+      vec.set(state.pointer.x, state.pointer.y, 0.5).unproject(state.camera);
+      dir.copy(vec).sub(state.camera.position).normalize();
+      vec.add(dir.multiplyScalar(state.camera.position.length()));
+      [card, j1, j2, j3, fixed].forEach(ref => ref.current?.wakeUp());
+      card.current?.setNextKinematicTranslation({ x: vec.x - dragged.x, y: vec.y - dragged.y, z: vec.z - dragged.z });
+    }
+    if (fixed.current) {
+      [j1, j2].forEach(ref => {
+        if (!ref.current.lerped) ref.current.lerped = new THREE.Vector3().copy(ref.current.translation());
+        const clampedDistance = Math.max(0.1, Math.min(1, ref.current.lerped.distanceTo(ref.current.translation())));
+        ref.current.lerped.lerp(
+          ref.current.translation(),
+          delta * (minSpeed + clampedDistance * (maxSpeed - minSpeed))
+        );
+      });
+      curve.points[0].copy(j3.current.translation());
+      curve.points[1].copy(j2.current.lerped);
+      curve.points[2].copy(j1.current.lerped);
+      curve.points[3].copy(fixed.current.translation());
+      band.current.geometry.setPoints(curve.getPoints(32));
+      ang.copy(card.current.angvel());
+      rot.copy(card.current.rotation());
+      card.current.setAngvel({ x: ang.x, y: ang.y - rot.y * 0.25, z: ang.z });
+    }
+  });
+
+  curve.curveType = 'chordal';
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+
+  return (
+    <>
+      <group position={[0, 4, 0]}>
+        <RigidBody ref={fixed} {...segmentProps} type="fixed" />
+        <RigidBody position={[0.5, 0, 0]} ref={j1} {...segmentProps}>
+          <BallCollider args={[0.1]} />
+        </RigidBody>
+        <RigidBody position={[1, 0, 0]} ref={j2} {...segmentProps}>
+          <BallCollider args={[0.1]} />
+        </RigidBody>
+        <RigidBody position={[1.5, 0, 0]} ref={j3} {...segmentProps}>
+          <BallCollider args={[0.1]} />
+        </RigidBody>
+        <RigidBody position={[2, 0, 0]} ref={card} {...segmentProps} type={dragged ? 'kinematicPosition' : 'dynamic'}>
+          <CuboidCollider args={[0.8, 1.125, 0.01]} />
+          <group
+            scale={2.25}
+            position={[0, -1.2, -0.05]}
+            onPointerOver={() => hover(true)}
+            onPointerOut={() => hover(false)}
+            onPointerUp={e => (e.target.releasePointerCapture(e.pointerId), drag(false))}
+            onPointerDown={e => (
+              e.target.setPointerCapture(e.pointerId),
+              drag(new THREE.Vector3().copy(e.point).sub(vec.copy(card.current.translation())))
+            )}
+          >
+            <mesh geometry={nodes.card.geometry}>
+              <meshPhysicalMaterial
+                map={materials.base.map}
+                map-anisotropy={16}
+                clearcoat={1}
+                clearcoatRoughness={0.15}
+                roughness={0.9}
+                metalness={0.8}
+              />
+            </mesh>
+            <mesh geometry={nodes.clip.geometry} material={materials.metal} material-roughness={0.3} />
+            <mesh geometry={nodes.clamp.geometry} material={materials.metal} />
+          </group>
+        </RigidBody>
+      </group>
+      <mesh ref={band}>
+        <meshLineGeometry />
+        <meshLineMaterial
+          color="white"
+          depthTest={false}
+          resolution={isSmall ? [1000, 2000] : [1000, 1000]}
+          useMap
+          map={texture}
+          repeat={[-4, 1]}
+          lineWidth={1}
+        />
+      </mesh>
+    </>
+  );
+}
+CSS
+.lanyard-wrapper {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transform: scale(1);
+  transform-origin: center;
+}
+
+
+
+Here is the main promp t:
+
+# Complete Website Development Prompt - Software Services Company
+
+## 🎯 Project Brief
+Create a high-performance, SEO-optimized software services company website with a sophisticated black & white theme, featuring smooth animations and strategic content architecture. The website should convert visitors into clients while showcasing technical expertise and credibility.
+
+---
+
+## 📋 Website Structure & Content
+
+### **1. HOME PAGE** (`/` or `/home`)
+
+#### **Navigation Bar**
+- **Component**: https://21st.dev/sshahaider/navigation-menu/default
+- **Links**: Home | About | Solutions | Careers | Contact
+- **Style**: Transparent on load, solid black on scroll with subtle shadow
+- **CTA Button**: "Get Started" (Accent gradient background)
+
+#### **Hero Section** (Custom with Magic UI Beams)
+- **Headline (H1)**: "We Build Intelligent Software Solutions"
+  - Font: 72px Bold, Letter-spacing: -0.02em
+  - Animation: Fade up with stagger
+- **Subtext**: Web • Mobile • Windows • AI
+  - Font: 24px, Text color: Secondary gray
+  - Animated separator dots with pulse effect
+- **CTA Buttons**: 
+  - Primary: "Start Your Project" → Links to Contact
+  - Secondary: "View Our Work" → Links to Solutions
+- **Background**: Animated grid lines with moving gradient beams (Magic UI)
+- **SEO Meta**:
+  - Title: "Custom Software Development Company | Web, Mobile & AI Solutions"
+  - Description: "Leading software development company specializing in web applications, mobile apps, Windows software, and AI solutions. Transform your business with cutting-edge technology."
+  - Keywords: software development company, custom software solutions, web development, mobile app development, AI solutions
+
+#### **Our Services Section**
+- **Component**: https://21st.dev/YoucefBnm/animated-slideshow/default
+- **Heading (H2)**: "Services That Drive Digital Transformation"
+- **Subheading**: "From concept to deployment, we deliver end-to-end software solutions"
+- **Services to Display** (8 cards in slideshow):
+  1. **Web Development**
+     - Icon: Code brackets
+     - Text: "Scalable web applications built with modern frameworks"
+  2. **Mobile App Development**
+     - Icon: Smartphone
+     - Text: "Native and cross-platform mobile solutions for iOS & Android"
+  3. **Desktop Applications**
+     - Icon: Monitor
+     - Text: "Powerful Windows applications for enterprise workflows"
+  4. **UI/UX Design**
+     - Icon: Palette
+     - Text: "User-centered design that converts and delights"
+  5. **AI & Automation**
+     - Icon: Brain/Robot
+     - Text: "Intelligent automation and machine learning solutions"
+  6. **Cloud & DevOps**
+     - Icon: Cloud
+     - Text: "Scalable cloud infrastructure and CI/CD pipelines"
+  7. **SEO & Digital Marketing**
+     - Icon: Chart trending up
+     - Text: "Data-driven strategies to grow your online presence"
+  8. **Software Consulting**
+     - Icon: Lightbulb
+     - Text: "Expert guidance for your technology decisions"
+
+#### **Our Process Section**
+- **Component**: https://21st.dev/jatin-yadav05/radial-orbital-timeline/default
+- **Heading (H2)**: "Our Proven Development Process"
+- **Subheading**: "A systematic approach to building exceptional software"
+- **Process Steps** (6 phases):
+  1. **Discovery & Planning**
+     - "Understanding your vision and defining project scope"
+  2. **Design & Prototyping**
+     - "Creating intuitive interfaces and user experiences"
+  3. **Development**
+     - "Building robust, scalable software solutions"
+  4. **Testing & QA**
+     - "Rigorous testing to ensure quality and performance"
+  5. **Deployment**
+     - "Seamless launch with zero downtime"
+  6. **Support & Maintenance**
+     - "Ongoing optimization and technical support"
+
+#### **Call to Action Banner**
+- **Bold Line**: "Let's Build Something Great Together."
+- **Button**: "Schedule a Consultation" → Contact Form
+- **Background**: Gradient overlay with subtle animation
+- **Style**: Full-width section, centered text, 100px padding top/bottom
+
+---
+
+### **2. ABOUT PAGE** (`/about`)
+
+#### **Hero Section**
+- **Heading (H1)**: "Transforming Ideas Into Digital Reality"
+- **Subheading**: "We're a team of innovators, designers, and developers passionate about creating software that makes a difference"
+- **SEO Meta**:
+  - Title: "About Us - Award-Winning Software Development Team"
+  - Description: "Learn about our software development company with 15+ years of experience, 120+ successful projects, and 98% client satisfaction. Meet the team behind innovative digital solutions."
+  - Keywords: software development team, technology company, custom software experts, digital transformation
+
+#### **Achievements Section**
+- **Component**: https://21st.dev/aceternity/bento-grid/default
+- **Heading (H2)**: "Our Impact in Numbers"
+- **Stats Cards** (4 large bento cards):
+  1. **120+ Projects**
+     - Icon: Rocket
+     - Description: "Successfully delivered across industries"
+  2. **98% Client Satisfaction**
+     - Icon: Star
+     - Description: "Consistently exceeding expectations"
+  3. **15+ Years Experience**
+     - Icon: Award
+     - Description: "Industry expertise you can trust"
+  4. **42 Team Members**
+     - Icon: Users
+     - Description: "Talented professionals dedicated to your success"
+
+#### **Why Choose Us Section**
+- **Component**: https://21st.dev/tailark/features-8/default
+- **Heading (H2)**: "Why Leading Companies Choose Us"
+- **Features** (6-8 feature cards):
+  1. **Agile Methodology** - "Flexible, iterative development for faster time-to-market"
+  2. **Cutting-Edge Technology** - "Latest frameworks and tools for future-proof solutions"
+  3. **Transparent Communication** - "Regular updates and clear project visibility"
+  4. **Scalable Architecture** - "Build once, scale infinitely"
+  5. **Security First** - "Enterprise-grade security in every line of code"
+  6. **Post-Launch Support** - "24/7 technical support and maintenance"
+  7. **Cost-Effective** - "Maximum ROI without compromising quality"
+  8. **Industry Expertise** - "Deep domain knowledge across multiple sectors"
+
+#### **Our Brands/Clients Section**
+- **Component**: https://21st.dev/cult-ui/logo-carousel/default
+- **Heading (H2)**: "Trusted by Industry Leaders"
+- **Subheading**: "Partnering with innovative companies worldwide"
+- **Client Logos**: Display 15-20 client/partner logos in infinite carousel
+- **Animation**: Smooth auto-scroll with pause on hover
+
+#### **Team Section**
+- **Component**: https://21st.dev/aceternity/animated-testimonials/default
+- **Heading (H2)**: "Meet the Minds Behind the Magic"
+- **Subheading**: "A diverse team of experts united by passion for innovation"
+- **Team Members** (Display key members):
+  - **CEO/Founder**: Name, Photo, Quote about company vision
+  - **CTO**: Name, Photo, Quote about technology approach
+  - **Lead Designer**: Name, Photo, Quote about user-centric design
+  - **Senior Developer**: Name, Photo, Quote about code quality
+  - **Project Manager**: Name, Photo, Quote about client success
+  - **Marketing Head**: Name, Photo, Quote about digital growth
+
+---
+
+### **3. SOLUTIONS PAGE** (`/solutions` or `/services`)
+
+#### **Hero Section**
+- **Heading (H1)**: "Comprehensive Software Solutions for Every Challenge"
+- **Subheading**: "Cutting-edge technology services tailored to your business needs"
+- **SEO Meta**:
+  - Title: "Software Solutions & Services | Web, Mobile, AI & Cloud Development"
+  - Description: "Explore our comprehensive software development services including web apps, mobile applications, AI automation, cloud solutions, and digital marketing. Custom solutions for your business."
+  - Keywords: software solutions, technology services, custom development, enterprise software, digital solutions
+
+#### **Solutions Grid**
+- **Component**: https://21st.dev/Codehagen/display-cards/default
+- **Layout**: 3-column grid (2 columns on tablet, 1 on mobile)
+- **Solutions** (8 detailed cards):
+
+1. **Web Development**
+   - **Icon**: Globe/Code
+   - **Short Description**: "Custom web applications that scale"
+   - **Technologies**: React, Next.js, Node.js, Python, .NET
+   - **Use Cases**: 
+     - Enterprise portals
+     - E-commerce platforms
+     - SaaS applications
+     - Progressive Web Apps (PWA)
+   - **CTA**: "Explore Web Solutions →"
+
+2. **Mobile App Development**
+   - **Icon**: Mobile device
+   - **Short Description**: "Native and cross-platform mobile experiences"
+   - **Technologies**: React Native, Flutter, Swift, Kotlin
+   - **Use Cases**:
+     - iOS & Android apps
+     - Cross-platform solutions
+     - Mobile-first experiences
+     - App modernization
+   - **CTA**: "Build Your App →"
+
+3. **Desktop / Windows Applications**
+   - **Icon**: Desktop computer
+   - **Short Description**: "Powerful enterprise desktop software"
+   - **Technologies**: .NET, Electron, WPF, C++
+   - **Use Cases**:
+     - Business management systems
+     - Data processing tools
+     - Enterprise applications
+     - Legacy system modernization
+   - **CTA**: "Develop Desktop Software →"
+
+4. **UI/UX & Product Design**
+   - **Icon**: Design tools
+   - **Short Description**: "User-centered design that converts"
+   - **Technologies**: Figma, Adobe XD, Sketch, Prototyping
+   - **Use Cases**:
+     - User interface design
+     - User experience research
+     - Design systems
+     - Brand identity
+   - **CTA**: "Transform Your Design →"
+
+5. **AI & Automation Solutions**
+   - **Icon**: Robot/Neural network
+   - **Short Description**: "Intelligent systems that work smarter"
+   - **Technologies**: TensorFlow, PyTorch, OpenAI, Machine Learning
+   - **Use Cases**:
+     - Chatbots & virtual assistants
+     - Predictive analytics
+     - Process automation
+     - Computer vision
+   - **CTA**: "Automate with AI →"
+
+6. **SEO & Digital Marketing**
+   - **Icon**: Chart/Megaphone
+   - **Short Description**: "Data-driven growth strategies"
+   - **Technologies**: Analytics, SEO tools, Content marketing
+   - **Use Cases**:
+     - Search engine optimization
+     - Content strategy
+     - Performance marketing
+     - Conversion optimization
+   - **CTA**: "Grow Your Presence →"
+
+7. **Cloud & DevOps Solutions**
+   - **Icon**: Cloud
+   - **Short Description**: "Scalable infrastructure and automation"
+   - **Technologies**: AWS, Azure, GCP, Docker, Kubernetes
+   - **Use Cases**:
+     - Cloud migration
+     - Infrastructure as Code
+     - CI/CD pipelines
+     - Container orchestration
+   - **CTA**: "Scale Your Infrastructure →"
+
+8. **Software Consulting & Support**
+   - **Icon**: Headset/Support
+   - **Short Description**: "Expert guidance and ongoing maintenance"
+   - **Technologies**: Technical consulting, Code reviews, Support
+   - **Use Cases**:
+     - Technology strategy
+     - Architecture design
+     - Code audits
+     - 24/7 technical support
+   - **CTA**: "Get Expert Advice →"
+
+#### **Process Overview**
+- **Component**: Reuse Radial Timeline (condensed version)
+- **Heading (H2)**: "How We Deliver Excellence"
+- **Brief 4-step process visualization**
+
+#### **CTA Section**
+- **Heading**: "Ready to Start Your Project?"
+- **Button**: "Request a Proposal" → Contact Form
+- **Background**: Accent gradient with animation
+
+---
+
+### **4. CAREERS PAGE** (`/careers`)
+
+#### **Hero Section**
+- **Heading (H1)**: "Join Our Team of Innovators"
+- **Subheading**: "We're always looking for talented people to build the future with us"
+- **Background**: Subtle animated grid
+- **SEO Meta**:
+  - Title: "Careers - Join Our Software Development Team"
+  - Description: "Explore exciting career opportunities at our software development company. Join a team of passionate developers, designers, and innovators building cutting-edge solutions."
+  - Keywords: software developer jobs, tech careers, remote development jobs, software engineer positions
+
+#### **Why Work With Us Section**
+- **Component**: Use Feature cards or Bento grid
+- **Heading (H2)**: "Why Join Us?"
+- **Benefits** (6-8 cards):
+  - 🚀 **Cutting-Edge Projects** - Work on innovative technologies
+  - 💰 **Competitive Compensation** - Industry-leading salaries and bonuses
+  - 🏠 **Remote Flexibility** - Work from anywhere
+  - 📚 **Learning & Growth** - Professional development budget
+  - 🏥 **Health Benefits** - Comprehensive insurance coverage
+  - 🎉 **Great Culture** - Collaborative, inclusive environment
+  - 🌴 **Work-Life Balance** - Flexible hours and PTO
+  - 💻 **Latest Tools** - Premium equipment and software
+
+#### **Open Positions Section**
+- **Component**: https://www.reactbits.dev/components/lanyard
+- **Heading (H2)**: "Open Positions"
+- **Job Listings** (Example roles):
+  1. **Senior Full-Stack Developer**
+     - Location: Remote/Hybrid
+     - Type: Full-time
+     - Experience: 5+ years
+     - "Build scalable web applications with React and Node.js"
+  
+  2. **Mobile App Developer (React Native)**
+     - Location: Remote
+     - Type: Full-time
+     - Experience: 3+ years
+     - "Create beautiful cross-platform mobile experiences"
+  
+  3. **UI/UX Designer**
+     - Location: Remote/On-site
+     - Type: Full-time
+     - Experience: 4+ years
+     - "Design intuitive interfaces that users love"
+  
+  4. **DevOps Engineer**
+     - Location: Remote
+     - Type: Full-time
+     - Experience: 4+ years
+     - "Build and maintain robust cloud infrastructure"
+  
+  5. **AI/ML Engineer**
+     - Location: Hybrid
+     - Type: Full-time
+     - Experience: 3+ years
+     - "Develop intelligent automation solutions"
+  
+  6. **Digital Marketing Specialist**
+     - Location: Remote
+     - Type: Full-time
+     - Experience: 2+ years
+     - "Drive growth through data-driven strategies"
+
+- **Each Job Card Includes**:
+  - Job title
+  - Department/Category
+  - Location
+  - Employment type
+  - Brief description
+  - "Apply Now" button → Application form
+
+#### **Application CTA**
+- **Text**: "Don't see the right role? Send us your resume anyway!"
+- **Button**: "General Application" → Career form
+- **Email**: careers@yourcompany.com
+
+---
+
+### **5. CONTACT PAGE** (`/contact`)
+
+#### **Hero Section**
+- **Heading (H1)**: "Let's Turn Your Vision Into Reality"
+- **Subheading**: "Get in touch to discuss your project and discover how we can help"
+- **SEO Meta**:
+  - Title: "Contact Us - Get a Free Software Development Consultation"
+  - Description: "Ready to start your project? Contact our software development team for a free consultation. Get expert advice on web, mobile, AI, and cloud solutions."
+  - Keywords: contact software company, free consultation, project inquiry, software development quote
+
+#### **Ratings & Reviews Section**
+- **Component**: https://21st.dev/serafim/testimonials-with-marquee/default (DUPLICATE 3 TIMES)
+- **Heading (H2)**: "What Our Clients Say"
+- **Implementation**: 
+  - **Row 1**: Marquee scrolling left → right (Speed: Normal)
+  - **Row 2**: Marquee scrolling right → left (Speed: Slightly faster)
+  - **Row 3**: Marquee scrolling left → right (Speed: Normal)
+- **Testimonials** (15-20 total, distributed across rows):
+  
+  **Examples**:
+  1. ⭐⭐⭐⭐⭐ "Exceptional team! They delivered our mobile app ahead of schedule with outstanding quality." - *Sarah Johnson, CEO, TechStart Inc.*
+  
+  2. ⭐⭐⭐⭐⭐ "The AI solution they built transformed our business operations. ROI exceeded expectations." - *Michael Chen, CTO, AutoFlow Systems*
+  
+  3. ⭐⭐⭐⭐⭐ "Professional, responsive, and incredibly talented. Our web platform has never been better." - *Emily Rodriguez, Founder, EduConnect*
+  
+  4. ⭐⭐⭐⭐⭐ "They took time to understand our needs and delivered exactly what we envisioned." - *David Thompson, Director, RetailPro*
+  
+  5. ⭐⭐⭐⭐⭐ "Best software development partner we've worked with. Highly recommend!" - *Lisa Wang, VP Product, HealthTech Solutions*
+  
+  6. ⭐⭐⭐⭐⭐ "Their UI/UX design elevated our brand. User engagement increased by 200%." - *James Miller, Marketing Director, BrandForward*
+  
+  7. ⭐⭐⭐⭐⭐ "Seamless cloud migration with zero downtime. Impressive technical expertise." - *Robert Garcia, IT Manager, Enterprise Corp*
+  
+  8. ⭐⭐⭐⭐⭐ "Transparent communication throughout the project. Felt like an extension of our team." - *Amanda Foster, COO, FinanceFlow*
+  
+  9. ⭐⭐⭐⭐⭐ "The desktop application they built revolutionized our workflow efficiency." - *Kevin Lee, Operations Lead, LogisticsPro*
+  
+  10. ⭐⭐⭐⭐⭐ "Outstanding post-launch support. They truly care about our success." - *Nicole Brown, Founder, StartupHub*
+
+#### **Contact Form & Footer**
+- **Component**: https://21st.dev/shadcnblockscom/shadcnblocks-com-footer2/default
+- **Contact Form Fields**:
+  - Name (required)
+  - Email (required)
+  - Phone (optional)
+  - Company (optional)
+  - Service Interest (dropdown): Web Development, Mobile Apps, AI Solutions, etc.
+  - Project Budget (dropdown): <$10k, $10k-$50k, $50k-$100k, $100k+
+  - Message (required, textarea)
+  - Submit button: "Send Message"
+  
+- **Contact Information**:
+  - **Address**: 123 Tech Boulevard, Innovation District, San Francisco, CA 94105
+  - **Email**: hello@yourcompany.com | support@yourcompany.com
+  - **Phone**: +1 (555) 123-4567
+  - **Business Hours**: Mon-Fri: 9 AM - 6 PM PST
+  
+- **Social Media Links**:
+  - LinkedIn
+  - Twitter/X
+  - GitHub
+  - Dribbble
+  - Instagram
+
+- **Footer Links**:
+  - **Company**: About, Team, Careers, Blog, Press
+  - **Solutions**: Web Dev, Mobile Apps, AI Solutions, Cloud Services
+  - **Resources**: Case Studies, Whitepapers, Documentation, Support
+  - **Legal**: Privacy Policy, Terms of Service, Cookie Policy
+
+- **Copyright**: © 2025 YourCompany. All rights reserved.
+
+---
+
+## 🔧 Global Utilities
+
+### **Loading Spinner**
+- **Component**: https://21st.dev/serafim/spinner/default
+- **Usage**: Page transitions, form submissions, data loading
+- **Style**: Accent color (Indigo/Purple), centered
+- **Animation**: Smooth rotation with subtle scale pulse
+
+### **Toast Notifications**
+- **Component**: https://21st.dev/base-ui/toast-1/default
+- **Types**:
+  - Success: Green accent, checkmark icon
+  - Error: Red accent, X icon
+  - Info: Blue accent, info icon
+  - Warning: Yellow accent, warning icon
+- **Position**: Top-right corner
+- **Duration**: 3-5 seconds with dismiss option
+- **Use Cases**:
+  - Form submission success/failure
+  - Newsletter signup confirmation
+  - File upload status
+  - General user feedback
+
+---
+
+## 🎨 Design System Details
+
+### **Spacing Scale**
+- xs: 4px
+- sm: 8px
+- md: 16px
+- lg: 24px
+- xl: 32px
+- 2xl: 48px
+- 3xl: 64px
+- 4xl: 96px
+
+### **Border Radius**
+- Small: 4px (buttons, inputs)
+- Medium: 8px (cards)
+- Large: 16px (sections)
+- Full: 9999px (pills)
+
+### **Shadows**
+- **Card**: `0 4px 6px -1px rgba(0, 0, 0, 0.5)`
+- **Elevated**: `0 10px 15px -3px rgba(0, 0, 0, 0.6)`
+- **Glow**: `0 0 20px rgba(99, 102, 241, 0.4)` (accent elements)
+
+### **Animation Timing**
+- **Fast**: 150ms (hover states)
+- **Normal**: 300ms (transitions)
+- **Slow**: 500ms (page transitions)
+- **Easing**: cubic-bezier(0.4, 0, 0.2, 1)
+
+---
+
+## 🚀 Performance & SEO Optimization
+
+### **Technical SEO**
+1. **Meta Tags** (every page):
+   - Unique title (50-60 characters)
+   - Meta description (150-160 characters)
+   - Open Graph tags (og:title, og:description, og:image)
+   - Twitter Card tags
+   - Canonical URLs
+
+2. **Structured Data** (Schema.org):
+   - Organization schema (About page)
+   - Service schema (Solutions page)
+   - JobPosting schema (Careers page)
+   - Review/Rating schema (Contact page)
+   - Breadcrumb schema (all pages)
+
+3. **Performance**:
+   - Lazy load images
+   - Code splitting by route
+   - Minify CSS/JS
+   - Optimize images (WebP format)
+   - Enable compression (Gzip/Brotli)
+   - CDN for static assets
+   - Target: Lighthouse score 90+
+
+4. **Accessibility**:
+   - WCAG 2.1 AA compliance
+   - Semantic HTML
+   - ARIA labels
+   - Keyboard navigation
+   - Alt text for images
+   - Color contrast ratio 4.5:1+
+
+### **Content Strategy**
+- **Keyword Density**: 1-2% for primary keywords
+- **Heading Hierarchy**: Proper H1-H6 structure
+- **Internal Linking**: Cross-link related pages
+- **Image Alt Text**: Descriptive, keyword-rich
+- **Content Length**: 
+  - Home: 500-800 words
+  - About: 800-1200 words
+  - Solutions: 1200-1500 words
+  - Blog posts: 1500-2500 words
+
+---
+
+## 📱 Responsive Breakpoints
+
+- **Mobile**: 320px - 640px
+- **Tablet**: 641px - 1024px
+- **Desktop**: 1025px - 1440px
+- **Large Desktop**: 1441px+
+
+### **Mobile-First Considerations**
+- Touch-friendly tap targets (min 44x44px)
+- Collapsible navigation menu
+- Simplified animations
+- Optimized image sizes
+- Fast loading times (<3s)
+
+---
+
+## ✨ Animation Details
+
+### **Page Load Animations**
+1. **Hero Section**: Fade up + scale (0.95 → 1)
+2. **Section Reveals**: Stagger children with 0.1s delay
+3. **Cards**: Fade in from bottom on scroll
+4. **Images**: Blur effect fade-in
+
+### **Interaction Animations**
+1. **Buttons**: 
+   - Hover: Scale 1.05 + glow effect
+   - Active: Scale 0.98
+2. **Cards**:
+   - Hover: Lift (translateY -8px) + shadow increase
+3. **Links**:
+   - Underline animation from left to right
+4. **Form Inputs**:
+   - Focus: Border glow + scale 1.02
+
+### **Scroll Animations**
+- Parallax effect on hero backgrounds
+- Counter animations for statistics
+- Progress indicators
+- Sticky navigation with background fade-in
+
+---
+
+## 🎯 Conversion Optimization
+
+### **Primary CTAs** (in order of priority):
+1. "Start Your Project" (Home Hero)
+2. "Schedule a Consultation" (Home CTA Banner)
+3. "Request a Proposal" (Solutions Page)
+4. "Get in Touch" (Contact Page)
+5. "Apply Now" (Careers Page)
+
+### **Secondary CTAs**:
+- "View Our Work" (Home)
+- "Learn More" (Service cards)
+- "Read Case Studies" (About)
+- "Download Portfolio" (Solutions)
+
+### **Trust Signals**:
+- Client logos (About page)
+- 5-star testimonials (Contact page)
+- Project statistics (About page)
+- Security badges (Footer)
+- Industry certifications (Footer)
+
+---
+
+## 📊 Analytics & Tracking
+
+### **Events to Track**:
+1. CTA button clicks
+2. Form submissions
+3. Navigation clicks
+4. Service card interactions
+5. Scroll depth (25%, 50%, 75%, 100%)
+6. Time on page
+7. Exit pages
+8. Download clicks
+
+### **Conversion Goals**:
+- Contact form submission
+- Phone/email clicks
+- Social media follows
+- Newsletter signups
+- Career applications
+
+---
+
+## 🔒 Security & Compliance
+
+1. **Form Security**:
+   - CSRF protection
+   - Input validation
+   - Rate limiting
+   - Honeypot fields (spam prevention)
+
+2. **Privacy**:
+   - GDPR compliant cookie banner
+   - Privacy policy linked in footer
+   - Data encryption (SSL/TLS)
+   - Secure form submissions
+
+3. **Legal Pages** (required):
+   - Privacy Policy
+   - Terms of Service
+   - Cookie Policy
+   - Disclaimer
+
+---
+
+## 🎬 Implementation Priority
+
+### **Phase 1** (Week 1-2):
+1. Setup design system and theme
+2. Build navigation and footer
+3. Create Home page structure
+4. Implement hero section with animations
+
+### **Phase 2** (Week 2-3):
+1. Build About page with stats
+2. Implement Solutions page with cards
+3. Add client logo carousel
+4. Integrate testimonials
+
+### **Phase 3** (Week 3-4):
+1. Build Contact page with form
+2. Create Careers page with listings
+3. Implement global utilities (spinner, toast)
+4. Add all micro-interactions
+
+### **Phase 4** (Week 4-5):
+1. SEO optimization (meta tags, schema)
+2. Performance optimization
+3. Accessibility testing
+4. Cross-browser/device testing
+5. Final QA and deployment
+
+---
+
+## 📝 Content Tone & Voice
+
+- **Professional yet approachable**
+- **Confident but not arrogant**
+- **Technical but understandable**
+- **Action-oriented with clear CTAs**
+- **Benefit-focused (what's in it for the client)**
+
+### **Writing Guidelines**:
+- Use active voice
+- Keep sentences concise (15-20 words)
+- Avoid jargon when possible
+- Use bullet points for scanability
+- Include specific numbers/data
+- End sections with clear next steps
+
+---
+
+This comprehensive prompt provides everything needed to build a professional, high-converting software services website with optimal SEO, modern design, and strategic content architecture.
